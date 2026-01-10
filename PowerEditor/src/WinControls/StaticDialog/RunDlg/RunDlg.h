@@ -39,8 +39,8 @@ void expandNppEnvironmentStrs(const wchar_t *strSrc, wchar_t *stringDest, size_t
 class Command {
 public :
 	Command() = default;
-	explicit Command(const wchar_t *cmd) : _cmdLine(cmd){};
-	explicit Command(const std::wstring& cmd) : _cmdLine(cmd){};
+	explicit Command(const wchar_t* cmd) : _cmdLine(cmd) {}
+	explicit Command(const std::wstring& cmd) : _cmdLine(cmd) {}
 	HINSTANCE run(HWND hWnd);
 	HINSTANCE run(HWND hWnd, const wchar_t* cwd);
 
@@ -56,13 +56,13 @@ public :
 	RunDlg() = default;
 
 	void doDialog(bool isRTL = false);
-	void destroy() override {};
+	void destroy() override {}
 
 protected :
+	void insertVariable(unsigned char id);
 	intptr_t CALLBACK run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam) override;
 
 private :
 	void addTextToCombo(const wchar_t *txt2Add) const;
 	void removeTextFromCombo(const wchar_t *txt2Remove) const;
 };
-

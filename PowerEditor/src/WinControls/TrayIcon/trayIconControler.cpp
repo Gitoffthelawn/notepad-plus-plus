@@ -27,17 +27,34 @@ trayIconControler::trayIconControler(HWND hwnd, UINT uID, UINT uCBMsg, HICON hic
   _nid.hIcon = hicon;
   wcscpy_s(_nid.szTip, tip);
   
-  ::RegisterWindowMessage(L"TaskbarCreated");
-  _isIconShowed = false;
+  _isIconShown = false;
 }
 
 int trayIconControler::doTrayIcon(DWORD op)
 {
-  if ((op != ADD)&&(op != REMOVE)) return INCORRECT_OPERATION;
-  if (((_isIconShowed)&&(op == ADD))||((!_isIconShowed)&&(op == REMOVE)))
+  if (op != ADD && op != REMOVE)
+      return INCORRECT_OPERATION;
+
+  if ((_isIconShown && op == ADD) || (!_isIconShown && op == REMOVE))
     return OPERATION_INCOHERENT;
+
   ::Shell_NotifyIcon(op, &_nid);
-  _isIconShowed = !_isIconShowed;
+  _isIconShown = !_isIconShown;
 
   return 0;
+}
+
+int trayIconControler::reAddTrayIcon()
+{
+    if (!_isIconShown)
+        return -1;
+
+    // we only re-add the tray icon when it has been lost and no longer exists,
+    // but we still delete it first to ensure it's not duplicated 
+    // due to an incorrect call or something
+    ::Shell_NotifyIcon(NIM_DELETE, &_nid);
+
+    // reset state and re-add tray icon
+    _isIconShown = false;
+    return doTrayIcon(ADD);
 }

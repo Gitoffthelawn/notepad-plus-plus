@@ -65,7 +65,25 @@ public :
 	void sortFileTypeDSC();
 	void sortFileSizeASC();
 	void sortFileSizeDSC();
+	void sortDateTimeASC();
+	void sortDateTimeDSC();
 	void doRefresh(bool invalidate = false);
+
+public:
+	// for message hook
+	static HHOOK _hMsgHook;
+	static HWND _hThisDlg;
+
+	static LRESULT CALLBACK getMsgProc(int code, WPARAM wParam, LPARAM lParam);
+	void initMessageHook() {
+		_hMsgHook = SetWindowsHookEx(WH_GETMESSAGE, getMsgProc, nullptr, GetCurrentThreadId());
+	}
+	void removeMessageHook() {
+		if (_hMsgHook) {
+			UnhookWindowsHookEx(_hMsgHook);
+			_hMsgHook = nullptr;
+		}
+	}
 
 protected :
 	intptr_t CALLBACK run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam) override;
@@ -105,9 +123,9 @@ private:
 class WindowsMenu
 {
 public:
-	WindowsMenu() {};
-	~WindowsMenu() {};
-	void init(HMENU hMainMenu); 
+	WindowsMenu() {}
+	~WindowsMenu() {}
+	void init(HMENU hMainMenu);
 	void initPopupMenu(HMENU hMenu, DocTabView *pTab);
 
 private:

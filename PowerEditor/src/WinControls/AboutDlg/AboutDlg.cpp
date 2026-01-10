@@ -15,9 +15,11 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+#include <format>
 #include "AboutDlg.h"
 #include "Parameters.h"
 #include "localization.h"
+#include "json.hpp"
 #if defined __has_include
 #if __has_include ("NppLibsVersion.h")
 #include "NppLibsVersion.h"
@@ -29,6 +31,77 @@ using namespace std;
 #ifdef _MSC_VER
 #pragma warning(disable : 4996) // for GetVersion()
 #endif
+
+
+// local DebugInfo helper
+void AppendDisplayAdaptersInfo(wstring& strOut, const unsigned int maxAdaptersIn)
+{
+	strOut += L"\r\n    installed Display Class adapters: ";
+
+	const wchar_t wszRegDisplayClassWinNT[] = L"SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E968-E325-11CE-BFC1-08002BE10318}";
+	HKEY hkDisplayClass = nullptr;
+	LSTATUS lStatus = ::RegOpenKeyExW(HKEY_LOCAL_MACHINE, wszRegDisplayClassWinNT, 0,
+		KEY_ENUMERATE_SUB_KEYS | KEY_QUERY_VALUE, &hkDisplayClass);
+	if ((lStatus != ERROR_SUCCESS) || !hkDisplayClass)
+	{
+		strOut += L"\r\n    - error, failed to open the Registry Display Class key!";
+		return;
+	}
+
+	DWORD dwSubkeysCount = 0;
+	lStatus = ::RegQueryInfoKeyW(hkDisplayClass, nullptr, nullptr, nullptr, &dwSubkeysCount,
+		nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+	if ((lStatus == ERROR_SUCCESS) && (dwSubkeysCount > 0))
+	{
+		DWORD dwAdapterSubkeysFound = 0;
+		for (DWORD i = 0; i < dwSubkeysCount; ++i)
+		{
+			if (dwAdapterSubkeysFound >= maxAdaptersIn)
+			{
+				strOut += L"\r\n    - warning, search has been limited to maximum number of adapter records: "
+					+ std::to_wstring(maxAdaptersIn);
+				break;
+			}
+
+			wstring strAdapterNo = std::format(L"{:#04d}", i); // 0000, 0001, 0002, etc...
+			wstring strAdapterSubKey = wszRegDisplayClassWinNT;
+			strAdapterSubKey += L'\\' + strAdapterNo;
+			HKEY hkAdapterSubKey = nullptr;
+			lStatus = ::RegOpenKeyExW(HKEY_LOCAL_MACHINE, strAdapterSubKey.c_str(), 0, KEY_READ, &hkAdapterSubKey);
+			if ((lStatus == ERROR_SUCCESS) && hkAdapterSubKey)
+			{
+				strAdapterNo.insert(0, L"\r\n        "); // doubling the output indentation
+				const unsigned int nKeyValMaxLen = 127;
+				const DWORD dwKeyValMaxSize = nKeyValMaxLen * sizeof(wchar_t);
+				wchar_t wszKeyVal[nKeyValMaxLen + 1]{}; // +1 ... to ensure NUL termination
+				DWORD dwType = REG_SZ;
+				DWORD dwSize = dwKeyValMaxSize;
+				if (::RegQueryValueExW(hkAdapterSubKey, L"DriverDesc", nullptr, &dwType, (LPBYTE)wszKeyVal, &dwSize)
+					== ERROR_SUCCESS)
+				{
+					dwAdapterSubkeysFound++;
+					strOut += strAdapterNo + L": Description - ";
+					strOut += wszKeyVal;
+				}
+				// for exact HW identification, query about the "MatchingDeviceId"
+				dwSize = dwKeyValMaxSize;
+				if (::RegQueryValueExW(hkAdapterSubKey, L"DriverVersion", nullptr, &dwType, (LPBYTE)wszKeyVal, &dwSize)
+					== ERROR_SUCCESS)
+				{
+					strOut += strAdapterNo + L": DriverVersion - ";
+					strOut += wszKeyVal;
+				}
+				// to obtain also the above driver date, query about the "DriverDate"
+				::RegCloseKey(hkAdapterSubKey);
+				hkAdapterSubKey = nullptr;
+			}
+		}
+	}
+
+	::RegCloseKey(hkDisplayClass);
+	hkDisplayClass = nullptr;
+}
+
 
 intptr_t CALLBACK AboutDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -65,10 +138,10 @@ intptr_t CALLBACK AboutDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lPar
 			//_pageLink.create(::GetDlgItem(_hSelf, IDC_HOME_ADDR), L"https://notepad-plus-plus.org/news/v844-happy-users-edition/";
             //_pageLink.create(::GetDlgItem(_hSelf, IDC_HOME_ADDR), L"https://notepad-plus-plus.org/news/v86-20thyearanniversary";
             //_pageLink.create(::GetDlgItem(_hSelf, IDC_AUTHOR_NAME), L"https://notepad-plus-plus.org/news/v87-about-taiwan/");
+			//_pageLink.create(::GetDlgItem(_hSelf, IDC_AUTHOR_NAME), L"https://notepad-plus-plus.org/news/v881-we-are-with-ukraine/");
             
 			_pageLink.init(_hInst, _hSelf);
-            //_pageLink.create(::GetDlgItem(_hSelf, IDC_HOME_ADDR), L"https://notepad-plus-plus.org/");
-			_pageLink.create(::GetDlgItem(_hSelf, IDC_AUTHOR_NAME), L"https://notepad-plus-plus.org/news/v88-we-are-with-ukraine/");
+            _pageLink.create(::GetDlgItem(_hSelf, IDC_HOME_ADDR), L"https://notepad-plus-plus.org/");
 
 			return TRUE;
 		}
@@ -114,8 +187,8 @@ intptr_t CALLBACK AboutDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lPar
 			const int iconSize = _dpiManager.scale(80);
 			if (_hIcon == nullptr)
 			{
-				//DPIManagerV2::loadIcon(_hInst, MAKEINTRESOURCE(NppDarkMode::isEnabled() ? IDI_CHAMELEON_DM : IDI_CHAMELEON), iconSize, iconSize, &_hIcon);
-				DPIManagerV2::loadIcon(_hInst, MAKEINTRESOURCE(IDI_WITHUKRAINE), iconSize, iconSize, &_hIcon);
+				DPIManagerV2::loadIcon(_hInst, MAKEINTRESOURCE(NppDarkMode::isEnabled() ? IDI_CHAMELEON_DM : IDI_CHAMELEON), iconSize, iconSize, &_hIcon);
+				//DPIManagerV2::loadIcon(_hInst, MAKEINTRESOURCE(IDI_WITHUKRAINE), iconSize, iconSize, &_hIcon);
 				//DPIManagerV2::loadIcon(_hInst, MAKEINTRESOURCE(NppDarkMode::isEnabled() ? IDI_TAIWANSSOVEREIGNTY_DM : IDI_TAIWANSSOVEREIGNTY), iconSize, iconSize, &_hIcon);
 			}
 
@@ -163,7 +236,6 @@ void AboutDlg::doDialog()
 	goToCenter(SWP_SHOWWINDOW | SWP_NOSIZE);
 }
 
-
 intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
@@ -181,7 +253,7 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 			_debugInfoStr += L"\r\n";
 
 			// Build time
-			_debugInfoStr += L"Build time : ";
+			_debugInfoStr += L"Build time: ";
 			wstring buildTime;
 			WcharMbcsConvertor& wmc = WcharMbcsConvertor::getInstance();
 			buildTime += wmc.char2wchar(__DATE__, CP_ACP);
@@ -191,19 +263,19 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 			_debugInfoStr += L"\r\n";
 
 #if defined(__clang__)
-			_debugInfoStr += L"Built with : Clang ";
+			_debugInfoStr += L"Built with: Clang ";
 			_debugInfoStr += wmc.char2wchar(__clang_version__, CP_ACP);
 			_debugInfoStr += L"\r\n";
 #elif defined(__GNUC__)
-			_debugInfoStr += L"Built with : GCC ";
+			_debugInfoStr += L"Built with: GCC ";
 			_debugInfoStr += wmc.char2wchar(__VERSION__, CP_ACP);
 			_debugInfoStr += L"\r\n";
 #elif !defined(_MSC_VER)
-			_debugInfoStr += L"Built with : (unknown)\r\n";
+			_debugInfoStr += L"Built with: (unknown)\r\n";
 #endif
 
 			// Scintilla/Lexilla version
-			_debugInfoStr += L"Scintilla/Lexilla included : ";
+			_debugInfoStr += L"Scintilla/Lexilla included: ";
 			{
 				string strSciLexVer = NPP_SCINTILLA_VERSION;
 				strSciLexVer += "/";
@@ -213,12 +285,24 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 			_debugInfoStr += L"\r\n";
 
 			// Boost Regex version
-			_debugInfoStr += L"Boost Regex included : ";
+			_debugInfoStr += L"Boost Regex included: ";
 			_debugInfoStr += wmc.char2wchar(NPP_BOOST_REGEX_VERSION, CP_ACP);
 			_debugInfoStr += L"\r\n";
 
+#if defined(PUGIXML_VERSION)
+			// pugixml version
+			_debugInfoStr += L"pugixml included: ";
+			_debugInfoStr += std::to_wstring(PUGIXML_VERSION / 1000) + L"." + std::to_wstring((PUGIXML_VERSION % 1000) / 10);
+			_debugInfoStr += L"\r\n";
+#endif
+
+			// JSON version
+			_debugInfoStr += L"nlohmann JSON included: ";
+			_debugInfoStr += to_wstring(NLOHMANN_JSON_VERSION_MAJOR) + L"." + to_wstring(NLOHMANN_JSON_VERSION_MINOR) + L"." + to_wstring(NLOHMANN_JSON_VERSION_PATCH);
+			_debugInfoStr += L"\r\n";
+
 			// Binary path
-			_debugInfoStr += L"Path : ";
+			_debugInfoStr += L"Path: ";
 			wchar_t nppFullPath[MAX_PATH]{};
 			::GetModuleFileName(NULL, nppFullPath, MAX_PATH);
 			_debugInfoStr += nppFullPath;
@@ -226,39 +310,39 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 
 			// Command line as specified for program launch
 			// The _cmdLinePlaceHolder will be replaced later by refreshDebugInfo()
-			_debugInfoStr += L"Command Line : ";
+			_debugInfoStr += L"Command Line: ";
 			_debugInfoStr += _cmdLinePlaceHolder;
 			_debugInfoStr += L"\r\n";
 
 			// Administrator mode
-			_debugInfoStr += L"Admin mode : ";
+			_debugInfoStr += L"Admin mode: ";
 			_debugInfoStr += _isAdmin ? L"ON" : L"OFF";
 			_debugInfoStr += L"\r\n";
 
 			// local conf
-			_debugInfoStr += L"Local Conf mode : ";
+			_debugInfoStr += L"Local Conf mode: ";
 			bool doLocalConf = (NppParameters::getInstance()).isLocal();
 			_debugInfoStr += doLocalConf ? L"ON" : L"OFF";
 			_debugInfoStr += L"\r\n";
 
 			// Cloud config directory
-			_debugInfoStr += L"Cloud Config : ";
+			_debugInfoStr += L"Cloud Config: ";
 			const wstring& cloudPath = nppParam.getNppGUI()._cloudPath;
 			_debugInfoStr += cloudPath.empty() ? L"OFF" : cloudPath;
 			_debugInfoStr += L"\r\n";
 
 			// Periodic Backup
-			_debugInfoStr += L"Periodic Backup : ";
+			_debugInfoStr += L"Periodic Backup: ";
 			_debugInfoStr += nppGui.isSnapshotMode() ? L"ON" : L"OFF";
 			_debugInfoStr += L"\r\n";
 
 			// Placeholders
-			_debugInfoStr += L"Placeholders : ";
+			_debugInfoStr += L"Placeholders: ";
 			_debugInfoStr += nppGui._keepSessionAbsentFileEntries ? L"ON" : L"OFF";
 			_debugInfoStr += L"\r\n";
 
 			// SC_TECHNOLOGY
-			_debugInfoStr += L"Scintilla Rendering Mode : ";
+			_debugInfoStr += L"Scintilla Rendering Mode: ";
 			switch (nppGui._writeTechnologyEngine)
 			{
 				case defaultTechnology:
@@ -285,7 +369,7 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 			_debugInfoStr += L"\r\n";
 
 			// Multi-instance
-			_debugInfoStr += L"Multi-instance Mode : ";
+			_debugInfoStr += L"Multi-instance Mode: ";
 			switch (nppGui._multiInstSetting)
 			{
 				case monoInst:
@@ -302,8 +386,13 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 			}
 			_debugInfoStr += L"\r\n";
 
+			// asNotepad
+			_debugInfoStr += L"asNotepad: ";
+			_debugInfoStr += nppParam.isAsNotepadStyle() ? L"ON" : L"OFF";
+			_debugInfoStr += L"\r\n";
+
 			// File Status Auto-Detection
-			_debugInfoStr += L"File Status Auto-Detection : ";
+			_debugInfoStr += L"File Status Auto-Detection: ";
 			if (nppGui._fileAutoDetection == cdDisabled)
 			{
 				_debugInfoStr += L"cdDisabled";
@@ -325,8 +414,25 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 			_debugInfoStr += L"\r\n";
 
 			// Dark Mode
-			_debugInfoStr += L"Dark Mode : ";
+			_debugInfoStr += L"Dark Mode: ";
 			_debugInfoStr += nppGui._darkmode._isEnabled ? L"ON" : L"OFF";
+			_debugInfoStr += L"\r\n";
+
+			// Display Info
+			_debugInfoStr += L"Display Info:";
+			{
+				HDC hdc = ::GetDC(nullptr); // desktop DC
+				if (hdc)
+				{
+					_debugInfoStr += L"\r\n    primary monitor: " + std::to_wstring(::GetDeviceCaps(hdc, HORZRES));
+					_debugInfoStr += L"x" + std::to_wstring(::GetDeviceCaps(hdc, VERTRES));
+					_debugInfoStr += L", scaling " + std::to_wstring(::GetDeviceCaps(hdc, LOGPIXELSX) * 100 / 96);
+					_debugInfoStr += L"%";
+					::ReleaseDC(nullptr, hdc);
+				}
+				_debugInfoStr += L"\r\n    visible monitors count: " + std::to_wstring(::GetSystemMetrics(SM_CMONITORS));
+				AppendDisplayAdaptersInfo(_debugInfoStr, 4); // survey up to 4 potential graphics card Registry records
+			}
 			_debugInfoStr += L"\r\n";
 
 			// OS information
@@ -397,7 +503,7 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 				}
 			}
 
-			_debugInfoStr += L"OS Name : ";
+			_debugInfoStr += L"OS Name: ";
 			_debugInfoStr += szProductName;
 			_debugInfoStr += L" (";
 			_debugInfoStr += (NppParameters::getInstance()).getWinVerBitStr();
@@ -406,14 +512,14 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 
 			if (szReleaseId[0] != '\0')
 			{
-				_debugInfoStr += L"OS Version : ";
+				_debugInfoStr += L"OS Version: ";
 				_debugInfoStr += szReleaseId;
 				_debugInfoStr += L"\r\n";
 			}
 
 			if (szCurrentBuildNumber[0] != '\0')
 			{
-				_debugInfoStr += L"OS Build : ";
+				_debugInfoStr += L"OS Build: ";
 				_debugInfoStr += szCurrentBuildNumber;
 				_debugInfoStr += L".";
 				_debugInfoStr += szUBR;
@@ -423,8 +529,8 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 			{
 				constexpr size_t bufSizeACP = 32;
 				wchar_t szACP[bufSizeACP] = { '\0' };
-				swprintf(szACP, bufSizeACP, L"%u", ::GetACP());
-				_debugInfoStr += L"Current ANSI codepage : ";
+				swprintf(szACP, bufSizeACP, L"%u", nppParam.currentSystemCodepage());
+				_debugInfoStr += L"Current ANSI codepage: ";
  				_debugInfoStr += szACP;
 				_debugInfoStr += L"\r\n";
 			}
@@ -449,7 +555,7 @@ intptr_t CALLBACK DebugInfoDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM 
 			}
 
 			// Plugins
-			_debugInfoStr += L"Plugins : ";
+			_debugInfoStr += L"Plugins: ";
 			_debugInfoStr += _loadedPlugins.length() == 0 ? L"none" : _loadedPlugins;
 			_debugInfoStr += L"\r\n";
 
@@ -553,18 +659,148 @@ void DebugInfoDlg::refreshDebugInfo()
 }
 
 
+const wchar_t COMMAND_ARG_HELP[] = L"Usage:\r\n\
+\r\n\
+notepad++ [--help] [-multiInst] [-noPlugin] [-lLanguage] [-udl=\"My UDL Name\"]\r\n\
+[-LlangCode] [-nLineNumber] [-cColumnNumber] [-pPosition] [-xLeftPos] [-yTopPos]\r\n\
+[-monitor] [-nosession] [-notabbar] [-systemtray] [-loadingTime] [-alwaysOnTop]\r\n\
+[-ro] [-fullReadOnly] [-fullReadOnlySavingForbidden] [-openSession] [-r]\r\n\
+[-qn=\"Easter egg name\" | -qt=\"a text to display.\" | -qf=\"D:\\my quote.txt\"]\r\n\
+[-qSpeed1|2|3] [-quickPrint] [-settingsDir=\"d:\\your settings dir\\\"]\r\n\
+[-openFoldersAsWorkspace]  [-titleAdd=\"additional title bar text\"]\r\n\
+[filePath]\r\n\
+\r\n\
+--help: This help message\r\n\
+-multiInst: Launch another Notepad++ instance\r\n\
+-noPlugin: Launch Notepad++ without loading any plugin\r\n\
+-l: Open file or Ghost type with syntax highlighting of choice\r\n\
+-udl=\"My UDL Name\": Open file by applying User Defined Language\r\n\
+-L: Apply indicated localization, langCode is browser language code\r\n\
+-n: Scroll to indicated line on filePath\r\n\
+-c: Scroll to indicated column on filePath\r\n\
+-p: Scroll to indicated position on filePath\r\n\
+-x: Move Notepad++ to indicated left side position on the screen\r\n\
+-y: Move Notepad++ to indicated top position on the screen\r\n\
+-monitor: Open file with file monitoring enabled\r\n\
+-nosession: Launch Notepad++ without previous session\r\n\
+-notabbar: Launch Notepad++ without tab bar\r\n\
+-ro: Make the filePath read-only\r\n\
+-fullReadOnly: Open all files read-only by default, toggling the R/O off and saving is allowed\r\n\
+-fullReadOnlySavingForbidden: Open all files read-only by default, toggling the R/O off and saving is disabled\r\n\
+-systemtray: Launch Notepad++ directly in system tray\r\n\
+-loadingTime: Display Notepad++ loading time\r\n\
+-alwaysOnTop: Make Notepad++ always on top\r\n\
+-openSession: Open a session. filePath must be a session file\r\n\
+-r: Open files recursively. This argument will be ignored if filePath contains no wildcard character\r\n\
+-qn=\"Easter egg name\": Ghost type easter egg via its name\r\n\
+-qt=\"text to display.\": Ghost type the given text\r\n\
+-qf=\"D:\\my quote.txt\": Ghost type a file content via the file path\r\n\
+-qSpeed: Ghost typing speed. Value from 1 to 3 for slow, fast and fastest\r\n\
+-quickPrint: Print the file given as argument then quit Notepad++\r\n\
+-settingsDir=\"d:\\your settings dir\\\": Override the default settings dir\r\n\
+-openFoldersAsWorkspace: open filePath of folder(s) as workspace\r\n\
+-titleAdd=\"string\": add string to Notepad++ title bar\r\n\
+filePath: file or folder name to open (absolute or relative path name)\r\n\
+";
+
+void CmdLineArgsDlg::doDialog()
+{
+	if (!isCreated())
+		create(IDD_COMMANDLINEARGSBOX);
+
+	::SetDlgItemText(_hSelf, IDC_COMMANDLINEARGS_EDIT, COMMAND_ARG_HELP);
+
+	// Create DPI-aware monospace font
+	NONCLIENTMETRICS ncm{};
+	ncm.cbSize = sizeof(NONCLIENTMETRICS);
+	SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0);
+
+	// Use the system font height but change to monospace
+	hCmdLineEditFont = CreateFont(
+		ncm.lfMessageFont.lfHeight,  // DPI-aware height from system
+		0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY, FIXED_PITCH | FF_MODERN,
+		L"Lucida Console");
+
+	if (hCmdLineEditFont)
+		SendDlgItemMessage(_hSelf, IDC_COMMANDLINEARGS_EDIT, WM_SETFONT, (WPARAM)hCmdLineEditFont, TRUE);
+
+	moveForDpiChange();
+	goToCenter(SWP_SHOWWINDOW | SWP_NOSIZE);
+}
+
+intptr_t CALLBACK CmdLineArgsDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+		case WM_INITDIALOG:
+		{
+			NppDarkMode::autoSubclassAndThemeChildControls(_hSelf);
+			return TRUE;
+		}
+
+		case WM_CTLCOLORDLG:
+		case WM_CTLCOLORSTATIC:
+		{
+			return NppDarkMode::onCtlColorDlg(reinterpret_cast<HDC>(wParam));
+		}
+
+		case WM_PRINTCLIENT:
+		{
+			if (NppDarkMode::isEnabled())
+			{
+				return TRUE;
+			}
+			break;
+		}
+
+		case NPPM_INTERNAL_REFRESHDARKMODE:
+		{
+			NppDarkMode::autoThemeChildControls(_hSelf);
+			return TRUE;
+		}
+
+		case WM_DPICHANGED:
+		{
+			_dpiManager.setDpiWP(wParam);
+			setPositionDpi(lParam);
+			getWindowRect(_rc);
+
+			return TRUE;
+		}
+
+		case WM_COMMAND:
+		{
+			switch (wParam)
+			{
+				case IDCANCEL:
+				case IDOK:
+					display(false);
+					return TRUE;
+
+				default:
+					break;
+			}
+			break;
+		}
+
+		case WM_DESTROY:
+		{
+			if (hCmdLineEditFont)
+			{
+				DeleteObject(hCmdLineEditFont);
+				hCmdLineEditFont = nullptr;
+			}
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
 void DoSaveOrNotBox::doDialog(bool isRTL)
 {
-
-	if (isRTL)
-	{
-		DLGTEMPLATE *pMyDlgTemplate = NULL;
-		HGLOBAL hMyDlgTemplate = makeRTLResource(IDD_DOSAVEORNOTBOX, &pMyDlgTemplate);
-		::DialogBoxIndirectParam(_hInst, pMyDlgTemplate, _hParent, dlgProc, reinterpret_cast<LPARAM>(this));
-		::GlobalFree(hMyDlgTemplate);
-	}
-	else
-		::DialogBoxParam(_hInst, MAKEINTRESOURCE(IDD_DOSAVEORNOTBOX), _hParent, dlgProc, reinterpret_cast<LPARAM>(this));
+	StaticDialog::myCreateDialogBoxIndirectParam(IDD_DOSAVEORNOTBOX, isRTL);
 }
 
 void DoSaveOrNotBox::changeLang()
@@ -676,16 +912,7 @@ intptr_t CALLBACK DoSaveOrNotBox::run_dlgProc(UINT message, WPARAM wParam, LPARA
 
 void DoSaveAllBox::doDialog(bool isRTL)
 {
-
-	if (isRTL)
-	{
-		DLGTEMPLATE* pMyDlgTemplate = NULL;
-		HGLOBAL hMyDlgTemplate = makeRTLResource(IDD_DOSAVEALLBOX, &pMyDlgTemplate);
-		::DialogBoxIndirectParam(_hInst, pMyDlgTemplate, _hParent, dlgProc, reinterpret_cast<LPARAM>(this));
-		::GlobalFree(hMyDlgTemplate);
-	}
-	else
-		::DialogBoxParam(_hInst, MAKEINTRESOURCE(IDD_DOSAVEALLBOX), _hParent, dlgProc, reinterpret_cast<LPARAM>(this));
+	StaticDialog::myCreateDialogBoxIndirectParam(IDD_DOSAVEALLBOX, isRTL);
 }
 
 void DoSaveAllBox::changeLang()

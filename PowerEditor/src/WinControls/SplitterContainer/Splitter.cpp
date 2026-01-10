@@ -14,20 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include <iostream>
 #include <stdexcept>
 #include <windows.h>
 #include "Splitter.h"
-#include "Parameters.h"
 #include "NppDarkMode.h"
+#include "dpiManagerV2.h"
 
 bool Splitter::_isHorizontalRegistered = false;
 bool Splitter::_isVerticalRegistered = false;
 bool Splitter::_isHorizontalFixedRegistered = false;
 bool Splitter::_isVerticalFixedRegistered = false;
 
-
-#define SPLITTER_SIZE 8
 
 void Splitter::init( HINSTANCE hInst, HWND hPere, int splitterSize, double iSplitRatio, DWORD dwFlags)
 {
@@ -40,10 +37,9 @@ void Splitter::init( HINSTANCE hInst, HWND hPere, int splitterSize, double iSpli
 	Window::init(hInst, hPere);
 	_splitterSize = splitterSize;
 
-	WNDCLASSEX wcex;
+	WNDCLASSEX wcex{};
 	DWORD dwExStyle = 0L;
 	DWORD dwStyle   = WS_CHILD | WS_VISIBLE;
-
 
 	_hParent = hPere;
 	_dwFlags = dwFlags;
@@ -57,7 +53,7 @@ void Splitter::init( HINSTANCE hInst, HWND hPere, int splitterSize, double iSpli
 	{
 		if (iSplitRatio >= 100)
 		{
-			//cant be 100 % or more
+			//can't be 100 % or more
 			throw std::runtime_error("Splitter::init : Parameter iSplitRatio shoulds be 0 < ratio < 100");
 		}
 	}
@@ -198,14 +194,14 @@ void Splitter::destroy()
 
 int Splitter::getClickZone(WH which)
 {
-	// determinated by (_dwFlags & SV_VERTICAL) && _splitterSize
+	// determined by (_dwFlags & SV_VERTICAL) && _splitterSize
 	if (_splitterSize <= 8)
 	{
 		return isVertical()
 			? (which == WH::width ? _splitterSize  : HIEGHT_MINIMAL)
 			: (which == WH::width ? HIEGHT_MINIMAL : _splitterSize);
 	}
-	else // (_spiltterSize > 8)
+	else // (_splitterSize > 8)
 	{
 		return isVertical()
 			? ((which == WH::width) ? 8  : 15)
@@ -514,8 +510,8 @@ void Splitter::gotoRightBottom()
 
 void Splitter::drawSplitter()
 {
-	PAINTSTRUCT ps;
-	RECT rc, rcToDraw1, rcToDraw2, TLrc, BRrc;
+	PAINTSTRUCT ps {};
+	RECT rc {}, rcToDraw1 {}, rcToDraw2 {}, TLrc {}, BRrc {};
 
 	HDC hdc = ::BeginPaint(_hSelf, &ps);
 	getClientRect(rc);
@@ -540,9 +536,13 @@ void Splitter::drawSplitter()
 		hBrushTop = ::GetSysColorBrush(COLOR_3DSHADOW);
 	}
 
-	DPIManager& dpiMgr = NppParameters::getInstance()._dpiManager;
+	const UINT dpi = DPIManagerV2::getDpiForParent(_hParent); // _hParent is SplitterContainer, and its parent is main window
+	const auto scaledSizeOne = LONG{ DPIManagerV2::scale(1, dpi) };
+	const auto scaledSizeTwo = LONG{ DPIManagerV2::scale(2, dpi) };
+	const auto scaledSizeThree = LONG{ DPIManagerV2::scale(3, dpi) };
+	const auto scaledSizeFour = LONG{ DPIManagerV2::scale(4, dpi) };
 
-	if ((_splitterSize >= dpiMgr.scaleX(4)) && (_dwFlags & SV_RESIZEWTHPERCNT))
+	if ((_splitterSize >= scaledSizeFour) && (_dwFlags & SV_RESIZEWTHPERCNT))
 	{
 		adjustZoneToDraw(TLrc, ZONE_TYPE::topLeft);
 		adjustZoneToDraw(BRrc, ZONE_TYPE::bottomRight);
@@ -552,18 +552,18 @@ void Splitter::drawSplitter()
 	if (isVertical())
 	{
 		rcToDraw2.top    = (_dwFlags & SV_RESIZEWTHPERCNT) ? _clickZone2TL.bottom : 0;
-		rcToDraw2.bottom = rcToDraw2.top + dpiMgr.scaleX(2);
+		rcToDraw2.bottom = rcToDraw2.top + scaledSizeTwo;
 
-		rcToDraw1.top    = rcToDraw2.top + dpiMgr.scaleX(1);
-		rcToDraw1.bottom = rcToDraw1.top + dpiMgr.scaleX(2);
+		rcToDraw1.top    = rcToDraw2.top + scaledSizeOne;
+		rcToDraw1.bottom = rcToDraw1.top + scaledSizeTwo;
 	}
 	else
 	{
-		rcToDraw2.top    = dpiMgr.scaleX(1);
-		rcToDraw2.bottom = dpiMgr.scaleX(3);
+		rcToDraw2.top    = scaledSizeOne;
+		rcToDraw2.bottom = scaledSizeThree;
 
-		rcToDraw1.top    = dpiMgr.scaleX(2);
-		rcToDraw1.bottom = dpiMgr.scaleX(4);
+		rcToDraw1.top    = scaledSizeTwo;
+		rcToDraw1.bottom = scaledSizeFour;
 	}
 
 	int bottom = 0;
@@ -576,40 +576,39 @@ void Splitter::drawSplitter()
 	{
 		if (isVertical())
 		{
-			rcToDraw2.left  = dpiMgr.scaleX(1);
-			rcToDraw2.right = dpiMgr.scaleX(3);
+			rcToDraw2.left  = scaledSizeOne;
+			rcToDraw2.right = scaledSizeThree;
 
-			rcToDraw1.left  = dpiMgr.scaleX(2);
-			rcToDraw1.right = dpiMgr.scaleX(4);
+			rcToDraw1.left  = scaledSizeTwo;
+			rcToDraw1.right = scaledSizeFour;
 		}
 		else
 		{
 			rcToDraw2.left = _clickZone2TL.right;
-			rcToDraw2.right = rcToDraw2.left + dpiMgr.scaleX(2);
+			rcToDraw2.right = rcToDraw2.left + scaledSizeTwo;
 
 			rcToDraw1.left = rcToDraw2.left;
-			rcToDraw1.right = rcToDraw1.left + dpiMgr.scaleX(2);
+			rcToDraw1.right = rcToDraw1.left + scaledSizeTwo;
 		}
 
-		int n = dpiMgr.scaleX(4);
 		while (rcToDraw1.right <= (isVertical() ? rc.right : rc.right - _clickZone2BR.right))
 		{
 			::FillRect(hdc, &rcToDraw1, hBrush);
 			::FillRect(hdc, &rcToDraw2, hBrushTop);
 
-			rcToDraw2.left  += n;
-			rcToDraw2.right += n;
-			rcToDraw1.left  += n;
-			rcToDraw1.right += n;
+			rcToDraw2.left  += scaledSizeFour;
+			rcToDraw2.right += scaledSizeFour;
+			rcToDraw1.left  += scaledSizeFour;
+			rcToDraw1.right += scaledSizeFour;
 		}
 
-		rcToDraw2.top    += n;
-		rcToDraw2.bottom += n;
-		rcToDraw1.top    += n;
-		rcToDraw1.bottom += n;
+		rcToDraw2.top    += scaledSizeFour;
+		rcToDraw2.bottom += scaledSizeFour;
+		rcToDraw1.top    += scaledSizeFour;
+		rcToDraw1.bottom += scaledSizeFour;
 	}
 
-	if ((_splitterSize >= dpiMgr.scaleX(4)) && (_dwFlags & SV_RESIZEWTHPERCNT))
+	if ((_splitterSize >= scaledSizeFour) && (_dwFlags & SV_RESIZEWTHPERCNT))
 		paintArrow(hdc, BRrc, isVertical() ? Arrow::right : Arrow::down);
 
 	if (isDarkMode)
@@ -649,7 +648,7 @@ void Splitter::rotate()
 
 void Splitter::paintArrow(HDC hdc, const RECT &rect, Arrow arrowDir)
 {
-	RECT rc;
+	RECT rc {};
 	rc.left = rect.left;
 	rc.top = rect.top;
 	rc.right = rect.right;
@@ -717,14 +716,14 @@ void Splitter::adjustZoneToDraw(RECT& rc2def, ZONE_TYPE whichZone)
 	if (_splitterSize < 4)
 		return;
 
-	int x0, y0, x1, y1, w, h;
+	int x0 = 0, y0 = 0, x1 = 0, y1 = 0, w = 0, h = 0;
 
 	if (/*(4 <= _splitterSize) && */(_splitterSize <= 8))
 	{
 		w = (isVertical() ? 4 : 7);
 		h = (isVertical() ? 7 : 4);
 	}
-	else // (_spiltterSize > 8)
+	else // (_splitterSize > 8)
 	{
 		w = (isVertical() ? 6  : 11);
 		h = (isVertical() ? 11 : 6);

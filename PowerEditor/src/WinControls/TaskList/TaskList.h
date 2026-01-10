@@ -33,35 +33,32 @@ public:
 		_rc.top = 0;
 		_rc.right = 150;
 		_rc.bottom = 0;
-	};
+	}
 
-	virtual ~TaskList() = default;
-	void init(HINSTANCE hInst, HWND hwnd, HIMAGELIST hImaLst, int nbItem, int index2set);
-	virtual void destroy();
-	void setFont(const wchar_t *fontName, int fontSize);
+	~TaskList() override = default;
+	using Window::init;
+	void init(HINSTANCE hInst, HWND parent, HIMAGELIST hImaLst, int nbItem, int index2set);
+	void destroy() override;
+	void setFont(int fontSize, const wchar_t* fontName = nullptr);
+	void destroyFont();
 	RECT adjustSize();
 	int getCurrentIndex() const {return _currentIndex;}
 	int updateCurrentIndex();
 
 	HIMAGELIST getImgLst() const {
 		return ListView_GetImageList(_hSelf, LVSIL_SMALL);
-	};
+	}
 
-	HFONT GetFontSelected() {return _hFontSelected;}
+	HFONT GetFontSelected() const { return _hFontSelected; }
 
 protected:
-
-	WNDPROC _defaultProc = nullptr;
-	LRESULT runProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam);
-
-	static LRESULT CALLBACK staticProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) {
-		return (((TaskList *)(::GetWindowLongPtr(hwnd, GWLP_USERDATA)))->runProc(hwnd, Message, wParam, lParam));
-	};
-
 	HFONT _hFont = nullptr;
 	HFONT _hFontSelected = nullptr;
 	int _nbItem = 0;
 	int _currentIndex = 0;
 	RECT _rc = {};
-};
 
+private:
+	void moveSelection(int direction);
+	static LRESULT CALLBACK TaskListSelectProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
+};

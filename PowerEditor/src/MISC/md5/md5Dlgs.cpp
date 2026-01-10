@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "md5.h"
-#include <stdint.h>
+#include <cstdint>
 #include "sha-256.h"
 #include "sha512.h"
 #include "calc_sha1.h"
@@ -25,6 +25,13 @@
 #include "Parameters.h"
 #include <shlwapi.h>
 #include "resource.h"
+
+#include <commctrl.h>
+
+#include "NppConstants.h"
+#include "NppDarkMode.h"
+
+static LRESULT CALLBACK TextEditSelectAllProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 
 intptr_t CALLBACK HashFromFilesDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -42,11 +49,8 @@ intptr_t CALLBACK HashFromFilesDlg::run_dlgProc(UINT message, WPARAM wParam, LPA
 			::SendMessage(hHashPathEdit, WM_SETFONT, reinterpret_cast<WPARAM>(_hFont), TRUE);
 			::SendMessage(hHashResult, WM_SETFONT, reinterpret_cast<WPARAM>(_hFont), TRUE);
 
-			::SetWindowLongPtr(hHashPathEdit, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-			_oldHashPathEditProc = reinterpret_cast<WNDPROC>(::SetWindowLongPtr(hHashPathEdit, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HashPathEditStaticProc)));
-
-			::SetWindowLongPtr(hHashResult, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-			_oldHashResultProc = reinterpret_cast<WNDPROC>(::SetWindowLongPtr(hHashResult, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HashResultStaticProc)));
+			::SetWindowSubclass(hHashPathEdit, TextEditSelectAllProc, static_cast<UINT_PTR>(SubclassID::first), 0);
+			::SetWindowSubclass(hHashResult, TextEditSelectAllProc, static_cast<UINT_PTR>(SubclassID::first), 0);
 		}
 		return TRUE;
 
@@ -144,7 +148,10 @@ intptr_t CALLBACK HashFromFilesDlg::run_dlgProc(UINT message, WPARAM wParam, LPA
 							}
 							else
 							{
-								std::string content = getFileContent(it.c_str());
+								bool bLoadingFailed = false;
+								std::string content = getFileContent(it.c_str(), &bLoadingFailed);
+								if (bLoadingFailed)
+									return FALSE;
 
 								uint8_t hash[HASH_MAX_LENGTH]{};
 								wchar_t hashStr[HASH_STR_MAX_LENGTH]{};
@@ -225,21 +232,34 @@ intptr_t CALLBACK HashFromFilesDlg::run_dlgProc(UINT message, WPARAM wParam, LPA
 	return FALSE;
 }
 
-LRESULT run_textEditProc(WNDPROC oldEditProc, HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+static LRESULT CALLBACK TextEditSelectAllProc(
+	HWND hWnd,
+	UINT uMsg,
+	WPARAM wParam,
+	LPARAM lParam,
+	UINT_PTR uIdSubclass,
+	[[maybe_unused]] DWORD_PTR /*dwRefData*/
+)
 {
-	switch (message)
+	switch (uMsg)
 	{
+		case WM_NCDESTROY:
+		{
+			::RemoveWindowSubclass(hWnd, TextEditSelectAllProc, uIdSubclass);
+			break;
+		}
+
 		case WM_GETDLGCODE:
 		{
-			return DLGC_WANTALLKEYS | ::CallWindowProc(oldEditProc, hwnd, message, wParam, lParam);
+			return DLGC_WANTALLKEYS | ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
 		}
 
 		case WM_CHAR:
 		{
 			if (wParam == 1) // Ctrl+A
 			{
-				::SendMessage(hwnd, EM_SETSEL, 0, -1);
-				return TRUE;
+				::SendMessage(hWnd, EM_SETSEL, 0, -1);
+				return 0;
 			}
 			break;
 		}
@@ -247,7 +267,7 @@ LRESULT run_textEditProc(WNDPROC oldEditProc, HWND hwnd, UINT message, WPARAM wP
 		default:
 			break;
 	}
-	return ::CallWindowProc(oldEditProc, hwnd, message, wParam, lParam);
+	return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
 }
 
 void HashFromFilesDlg::setHashType(hashType hashType2set)
@@ -360,6 +380,7 @@ void HashFromTextDlg::generateHash()
 				break;
 
 				default:
+					delete[] text;
 					return;
 			}
 
@@ -444,6 +465,7 @@ void HashFromTextDlg::generateHashPerLine()
 							break;
 
 							default:
+								delete[] text;
 								return;
 						}
 
@@ -483,11 +505,8 @@ intptr_t CALLBACK HashFromTextDlg::run_dlgProc(UINT message, WPARAM wParam, LPAR
 			::SendMessage(hHashTextEdit, WM_SETFONT, reinterpret_cast<WPARAM>(_hFont), TRUE);
 			::SendMessage(hHashResult, WM_SETFONT, reinterpret_cast<WPARAM>(_hFont), TRUE);
 
-			::SetWindowLongPtr(hHashTextEdit, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-			_oldHashTextEditProc = reinterpret_cast<WNDPROC>(::SetWindowLongPtr(hHashTextEdit, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HashTextEditStaticProc)));
-
-			::SetWindowLongPtr(hHashResult, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-			_oldHashResultProc = reinterpret_cast<WNDPROC>(::SetWindowLongPtr(hHashResult, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HashResultStaticProc)));
+			::SetWindowSubclass(hHashTextEdit, TextEditSelectAllProc, static_cast<UINT_PTR>(SubclassID::first), 0);
+			::SetWindowSubclass(hHashResult, TextEditSelectAllProc, static_cast<UINT_PTR>(SubclassID::first), 0);
 		}
 		return TRUE;
 

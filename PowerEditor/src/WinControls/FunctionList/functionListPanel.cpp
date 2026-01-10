@@ -115,7 +115,7 @@ size_t FunctionListPanel::getBodyClosePos(size_t begin, const wchar_t *bodyOpenS
 		{
 			targetEnd = (*_ppEditView)->execute(SCI_GETTARGETEND);
 
-			// Now we determinate the symbol (open or close)
+			// Now we determine the symbol (open or close)
 			intptr_t tmpStart = (*_ppEditView)->searchInTarget(bodyOpenSymbol, lstrlen(bodyOpenSymbol), targetStart, targetEnd);
 			if (tmpStart >= 0) // open symbol found
 			{
@@ -367,7 +367,7 @@ void FunctionListPanel::reload()
 	Buffer* currentBuf = (*_ppEditView)->getCurrentBuffer();
 	const wchar_t *fn = currentBuf->getFileName();
 	LangType langID = currentBuf->getLangType();
-	if (langID == L_JS)
+	if (langID == L_JS_EMBEDDED)
 		langID = L_JAVASCRIPT;
 
 	const wchar_t *udln = NULL;
@@ -441,7 +441,7 @@ void FunctionListPanel::initPreferencesMenu()
 	NativeLangSpeaker* pNativeSpeaker = NppParameters::getInstance().getNativeLangSpeaker();
 	const NppGUI& nppGUI = NppParameters::getInstance().getNppGUI();
 
-	wstring shouldSortFunctionListStr = pNativeSpeaker->getAttrNameStr(L"Sort functions (A to Z) by default", FL_FUCTIONLISTROOTNODE, FL_PREFERENCE_INITIALSORT);
+	wstring shouldSortFunctionListStr = pNativeSpeaker->getAttrNameStr(L"Sort functions (A to Z) by default", FL_FUNCTIONLISTROOTNODE, FL_PREFERENCE_INITIALSORT);
 
 	_hPreferencesMenu = ::CreatePopupMenu();
 	::InsertMenu(_hPreferencesMenu, 0, MF_BYCOMMAND, FL_PREFERENCES_INITIALSORT_ID, shouldSortFunctionListStr.c_str());
@@ -853,8 +853,7 @@ intptr_t CALLBACK FunctionListPanel::run_dlgProc(UINT message, WPARAM wParam, LP
 			const DWORD tbExStyle = static_cast<DWORD>(::SendMessage(_hToolbarMenu, TB_GETEXTENDEDSTYLE, 0, 0));
 			::SendMessage(_hToolbarMenu, TB_SETEXTENDEDSTYLE, 0, tbExStyle | TBSTYLE_EX_DOUBLEBUFFER);
 
-			constexpr UINT_PTR idSubclassFunclstToolbar = 2;
-			::SetWindowSubclass(_hToolbarMenu, funclstToolbarProc, idSubclassFunclstToolbar, 0);
+			::SetWindowSubclass(_hToolbarMenu, funclstToolbarProc, static_cast<UINT_PTR>(SubclassID::first), 0);
 
 			const int iconSizeDyn = _dpiManager.scale(16);
 			constexpr int nbIcons = 3;
@@ -921,17 +920,16 @@ intptr_t CALLBACK FunctionListPanel::run_dlgProc(UINT message, WPARAM wParam, LP
 
 			// tips text for toolbar buttons
 			NativeLangSpeaker *pNativeSpeaker = nppParam.getNativeLangSpeaker();
-			_sortTipStr = pNativeSpeaker->getAttrNameStr(_sortTipStr.c_str(), FL_FUCTIONLISTROOTNODE, FL_SORTLOCALNODENAME);
-			_reloadTipStr = pNativeSpeaker->getAttrNameStr(_reloadTipStr.c_str(), FL_FUCTIONLISTROOTNODE, FL_RELOADLOCALNODENAME);
-			_preferenceTipStr = pNativeSpeaker->getAttrNameStr(_preferenceTipStr.c_str(), FL_FUCTIONLISTROOTNODE, FL_PREFERENCESLOCALNODENAME);
+			_sortTipStr = pNativeSpeaker->getAttrNameStr(_sortTipStr.c_str(), FL_FUNCTIONLISTROOTNODE, FL_SORTLOCALNODENAME);
+			_reloadTipStr = pNativeSpeaker->getAttrNameStr(_reloadTipStr.c_str(), FL_FUNCTIONLISTROOTNODE, FL_RELOADLOCALNODENAME);
+			_preferenceTipStr = pNativeSpeaker->getAttrNameStr(_preferenceTipStr.c_str(), FL_FUNCTIONLISTROOTNODE, FL_PREFERENCESLOCALNODENAME);
 
 			_hSearchEdit = CreateWindowEx(WS_EX_CLIENTEDGE, WC_EDIT, NULL,
 								WS_CHILD | WS_VISIBLE | ES_AUTOVSCROLL,
 								2, 2, editWidth, editHeight,
 								_hToolbarMenu, reinterpret_cast<HMENU>(IDC_SEARCHFIELD_FUNCLIST), _hInst, 0 );
 
-			constexpr UINT_PTR idSubclassFunclstSearchEdit = 3;
-			::SetWindowSubclass(_hSearchEdit, funclstSearchEditProc, idSubclassFunclstSearchEdit, 0);
+			::SetWindowSubclass(_hSearchEdit, funclstSearchEditProc, static_cast<UINT_PTR>(SubclassID::first), 0);
 
 			if (_hFontSearchEdit == nullptr)
 			{

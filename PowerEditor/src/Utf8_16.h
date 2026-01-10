@@ -52,10 +52,10 @@ public:
 	void set(const ubyte* pBuf, size_t nLen, UniMode eEncoding);
 	bool get(utf8 *c);
 	void operator++();
-	eState getState() { return m_eState; };
+	eState getState() { return m_eState; }
         // Utf8_16::read always consumes two bytes,
         // thus the bool operator checks if m_pRead is less than m_pEnd by two bytes.
-	operator bool() { return (m_pRead + 1 < m_pEnd) || (m_out1st != m_outLst); };
+	operator bool() { return (m_pRead + 1 < m_pEnd) || (m_out1st != m_outLst); }
 
 protected:
 	void read();
@@ -105,7 +105,7 @@ protected:
 enum u78 {utf8NoBOM=0, ascii7bits=1, ascii8bits=2};
 class Utf8_16_Read : public Utf8_16 {
 public:
-	Utf8_16_Read() {};
+	Utf8_16_Read() {}
 	~Utf8_16_Read();
 
 	size_t convert(char* buf, size_t len);
@@ -113,14 +113,14 @@ public:
 	size_t getNewSize() const { return m_nNewBufSize; }
 
 	UniMode getEncoding() const { return m_eEncoding; }
-    static UniMode determineEncoding(const unsigned char *buf, size_t bufLen);
+    static UniMode determineEncodingFromBOM(const unsigned char *buf, size_t bufLen);
 
 protected:
 	void determineEncoding();
 
 	u78 utf8_7bits_8bits();
 private:
-	UniMode    m_eEncoding = uni8Bit;
+	UniMode         m_eEncoding = uni8Bit;
 	ubyte*          m_pBuf = nullptr;
 	ubyte*          m_pNewBuf = nullptr;
 	// size of the new buffer
@@ -148,11 +148,13 @@ public:
 	size_t convert(char* p, size_t _size);
 	char* getNewBuf() { return reinterpret_cast<char*>(m_pNewBuf); }
 
+	DWORD getLastFileErrorState() { return m_dwLastFileError; }
+
 protected:
 	UniMode m_eEncoding;
 	std::unique_ptr<Win32_IO_File> m_pFile;
 	ubyte* m_pNewBuf;
 	size_t m_nBufSize;
 	bool m_bFirstWrite;
+	DWORD m_dwLastFileError;
 };
-

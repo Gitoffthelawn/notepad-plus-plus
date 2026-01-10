@@ -22,18 +22,15 @@
 const int SAVED_IMG_INDEX = 0;
 const int UNSAVED_IMG_INDEX = 1;
 const int REDONLY_IMG_INDEX = 2;
-const int MONITORING_IMG_INDEX = 3;
+const int REDONLYSYS_IMG_INDEX = 3;
+const int MONITORING_IMG_INDEX = 4;
 
 
 class DocTabView : public TabBarPlus
 {
-public :
-	DocTabView():TabBarPlus(), _pView(NULL) {};
-	virtual ~DocTabView(){};
-	
-	void destroy() override {
-		TabBarPlus::destroy();
-	};
+public:
+	DocTabView() : TabBarPlus(), _pView(nullptr) {}
+	~DocTabView() override {}
 
 	void init(HINSTANCE hInst, HWND parent, ScintillaEditView * pView, unsigned char indexChoice, unsigned char buttonsStatus);
 
@@ -44,7 +41,7 @@ public :
 			return;
 		_iconListIndexChoice = choice;
 		TabBar::setImageList(_pIconListVector[_iconListIndexChoice]->getHandle());
-	};
+	}
 
 	void addBuffer(BufferID buffer);
 	void closeBuffer(BufferID buffer);
@@ -75,11 +72,11 @@ public :
 			_iconListIndexChoice = 0;
 
 		TabBar::setImageList(_pIconListVector[_iconListIndexChoice]->getHandle());
-	};
+	}
 
 	const ScintillaEditView* getScintillaEditView() const {
 		return _pView;
-	};
+	}
 
 	void setIndividualTabColour(BufferID bufferId, int colorId);
 	int getIndividualTabColourId(int tabIndex) override;
@@ -88,7 +85,7 @@ public :
 		if (index >= _pIconListVector.size())
 			index = 0;
 		return _pIconListVector[index]->getHandle();
-	};
+	}
 
 private :
 	ScintillaEditView *_pView = nullptr;

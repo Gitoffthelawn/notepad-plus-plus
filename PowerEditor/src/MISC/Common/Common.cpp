@@ -17,16 +17,15 @@
 #include <algorithm>
 #include <stdexcept>
 #include <shlwapi.h>
-#include <uxtheme.h>
-#include <cassert>
+#include <commctrl.h>
 #include <locale>
 #include "StaticDialog.h"
 #include "CustomFileDialog.h"
 #include "FileInterface.h"
 #include "Common.h"
 #include "Utf8.h"
-#include "Parameters.h"
 #include "Buffer.h"
+#include "dpiManagerV2.h"
 
 using namespace std;
 
@@ -51,26 +50,53 @@ wstring commafyInt(size_t n)
 	return ss.str();
 }
 
-std::string getFileContent(const wchar_t *file2read)
+std::string getFileContent(const wchar_t* file2read, bool* pbFailed)
 {
+	if (pbFailed)
+		*pbFailed = false; // reset
+
 	if (!doesFileExist(file2read))
-		return "";
-
-	const size_t blockSize = 1024;
-	char data[blockSize];
-	std::string wholeFileContent = "";
-	FILE *fp = _wfopen(file2read, L"rb");
-	if (!fp)
-		return "";
-
-	size_t lenFile = 0;
-	do
 	{
-		lenFile = fread(data, 1, blockSize, fp);
-		if (lenFile == 0) break;
-		wholeFileContent.append(data, lenFile);
+		if (pbFailed)
+			*pbFailed = true;
+		return "";
 	}
-	while (lenFile > 0);
+
+	FILE* fp = _wfopen(file2read, L"rb");
+	if (!fp)
+	{
+		if (pbFailed)
+			*pbFailed = true;
+		return "";
+	}
+	
+	static constexpr size_t blockSize = 1024 * 4; // 4K is optimal chunk for memory, cache, disk or network
+	char data[blockSize];
+	std::string wholeFileContent;
+	size_t lenFile = 0;
+	try
+	{
+		do
+		{
+			lenFile = fread(data, 1, blockSize, fp);
+			if (lenFile == 0) break;
+			wholeFileContent.append(data, lenFile);
+		} while (lenFile > 0);
+	}
+	catch ([[maybe_unused]] const std::bad_alloc& ex)
+	{
+		if (pbFailed)
+			*pbFailed = true;
+		std::string().swap(wholeFileContent); // to immediately release all the allocated memory
+		::MessageBoxW(NULL, L"std::bad_alloc exception caught!\n\nProbably not enough contiguous memory to complete the operation.",
+			L"Notepad++ - getFileContent", MB_OK | MB_ICONWARNING | MB_APPLMODAL);
+	}
+	catch (...)
+	{
+		if (pbFailed)
+			*pbFailed = true;
+		std::string().swap(wholeFileContent); // to immediately release all the allocated memory
+	}
 
 	fclose(fp);
 	return wholeFileContent;
@@ -282,7 +308,7 @@ bool isInList(const wchar_t *token, const wchar_t *list)
 				word[j] = '\0';
 				j = 0;
 
-				if (!wcsicmp(token, word))
+				if (!_wcsicmp(token, word))
 					return true;
 			}
 		}
@@ -955,6 +981,69 @@ bool str2Clipboard(const wstring &str2cpy, HWND hwnd)
 	return true;
 }
 
+std::wstring strFromClipboard()
+{
+	std::wstring clipboardText;
+	if (::OpenClipboard(NULL))
+	{
+		if (::IsClipboardFormatAvailable(CF_UNICODETEXT))
+		{
+			HANDLE hClipboardData = ::GetClipboardData(CF_UNICODETEXT);
+			if (hClipboardData)
+			{
+				wchar_t* pWc = static_cast<wchar_t*>(::GlobalLock(hClipboardData));
+				if (pWc)
+				{
+					clipboardText = pWc;
+					::GlobalUnlock(hClipboardData);
+				}
+			}
+		}
+		::CloseClipboard();
+	}
+
+	// trim the EOL at the end of string if any
+	// 1: X, \r, \n  => don't change
+	if (clipboardText.length() < 2)
+		return clipboardText;
+
+	// 2: XX, \nX, \rX, X\r, X\n, \r\n, \r\r, \n\n, \n\r
+	if (clipboardText.length() == 2)
+	{
+		if (clipboardText[1] != '\r' && clipboardText[1] != '\n') // XX, \nX, \rX  => don't change 
+			return clipboardText;
+
+		if (clipboardText[0] == '\r' && clipboardText[1] == '\n') // \r\n  => don't change
+			return clipboardText;
+
+		if (clipboardText[0] == '\r' && clipboardText[1] == '\r') // \r\r  => don't change
+			return clipboardText;
+
+		if (clipboardText[0] == '\n' && clipboardText[1] == '\n') // \n\n  => don't change
+			return clipboardText;
+
+		if (clipboardText[0] != '\r' && clipboardText[0] != '\n') // X\n, X\r  => remove \n or \r
+		{
+			wchar_t trimedResult[2]{};
+			trimedResult[0] = clipboardText[0];
+			trimedResult[1] = '\0';
+			return trimedResult;
+		}
+
+		return clipboardText; // \n\r (unlikely happen, but if it does, keep them)
+	}
+	else // length >= 3    => Remove the EOL at the end of string
+	{
+		size_t posEol = clipboardText.length() - 2;
+		if (clipboardText.substr(posEol) == L"\r\n")
+			clipboardText.erase(posEol, 2);
+		else if (clipboardText.substr(posEol + 1) == L"\r" || clipboardText.substr(posEol + 1) == L"\n")
+			clipboardText.erase(posEol + 1, 1);
+	}
+
+	return clipboardText;
+}
+
 bool buf2Clipboard(const std::vector<Buffer*>& buffers, bool isFullPath, HWND hwnd)
 {
 	const wstring crlf = L"\r\n";
@@ -1260,7 +1349,7 @@ bool isCertificateValidated(const wstring & fullFilePath, const wstring & subjec
 	catch (...)
 	{
 		// Unknown error
-		wstring errorMessage = L"Unknown exception occured. ";
+		wstring errorMessage = L"Unknown exception occurred. ";
 		errorMessage += GetLastErrorAsString(GetLastError());
 		MessageBox(NULL, errorMessage.c_str(), L"Certificate checking", MB_OK);
 	}
@@ -1323,7 +1412,7 @@ bool deleteFileOrFolder(const wstring& f2delete)
 	return (res == 0);
 }
 
-// Get a vector of full file paths in a given folder. File extension type filter should be *.*, *.xml, *.dll... according the type of file you want to get.  
+// Get a vector of full file paths in a given folder. File extension type filter should be *.*, *.xml, *.dll... according to the type of file you want to get.  
 void getFilesInFolder(std::vector<wstring>& files, const wstring& extTypeFilter, const wstring& inFolder)
 {
 	wstring filter = inFolder;
@@ -1490,20 +1579,15 @@ wstring getDateTimeStrFrom(const wstring& dateTimeFormat, const SYSTEMTIME& st)
 // Don't forget to use DeleteObject(createdFont) before leaving the program
 HFONT createFont(const wchar_t* fontName, int fontSize, bool isBold, HWND hDestParent)
 {
-	HDC hdc = GetDC(hDestParent);
-
 	LOGFONT logFont{};
-	logFont.lfHeight = DPIManagerV2::scaleFont(fontSize, hDestParent);
+	const int fontSizeScaled = DPIManagerV2::scaleFontForFactor(fontSize);
+	logFont.lfHeight = DPIManagerV2::scaleFont(fontSizeScaled, hDestParent);
 	if (isBold)
 		logFont.lfWeight = FW_BOLD;
 
-	wcscpy_s(logFont.lfFaceName, fontName);
+	::wcsncpy_s(logFont.lfFaceName, fontName, size_t{ LF_FACESIZE - 1 });
 
-	HFONT newFont = CreateFontIndirect(&logFont);
-
-	ReleaseDC(hDestParent, hdc);
-
-	return newFont;
+	return ::CreateFontIndirectW(&logFont);
 }
 
 bool removeReadOnlyFlagFromFileAttributes(const wchar_t* fileFullPath)
@@ -1515,6 +1599,49 @@ bool removeReadOnlyFlagFromFileAttributes(const wchar_t* fileFullPath)
 
 	dwFileAttribs &= ~FILE_ATTRIBUTE_READONLY;
 	return (::SetFileAttributes(fileFullPath, dwFileAttribs) != FALSE);
+}
+
+// return false when failed, otherwise true and then the isChangedToReadOnly output will be set
+// accordingly to the changed file R/O-state
+bool toggleReadOnlyFlagFromFileAttributes(const wchar_t* fileFullPath, bool& isChangedToReadOnly)
+{
+	DWORD dwFileAttribs = ::GetFileAttributes(fileFullPath);
+	if (dwFileAttribs == INVALID_FILE_ATTRIBUTES || (dwFileAttribs & FILE_ATTRIBUTE_DIRECTORY))
+		return false;
+
+	if (dwFileAttribs & FILE_ATTRIBUTE_READONLY)
+		dwFileAttribs &= ~FILE_ATTRIBUTE_READONLY;
+	else
+		dwFileAttribs |= FILE_ATTRIBUTE_READONLY;
+	
+	if (::SetFileAttributes(fileFullPath, dwFileAttribs))
+	{
+		isChangedToReadOnly = (dwFileAttribs & FILE_ATTRIBUTE_READONLY) != 0;
+		return true;
+	}
+	else
+	{
+		if (::GetLastError() == ERROR_ACCESS_DENIED)
+		{
+			// try to set elevated
+			// (notepad++.exe #UAC-SETFILEATTRIBUTES# attrib_flags_number_str dest_file_path)
+			wstring strCmdLineParams = NPP_UAC_SETFILEATTRIBUTES_SIGN;
+			strCmdLineParams += L" \"" + to_wstring(dwFileAttribs) + L"\" \"";
+			strCmdLineParams += fileFullPath;
+			strCmdLineParams += L"\"";
+			DWORD dwNppUacOpError = invokeNppUacOp(strCmdLineParams);
+			if (dwNppUacOpError == NO_ERROR)
+			{
+				isChangedToReadOnly = (dwFileAttribs & FILE_ATTRIBUTE_READONLY) != 0;
+				return true;
+			}
+			else
+			{
+				::SetLastError(dwNppUacOpError); // set that as our current thread one for a possible reporting later
+			}
+		}
+		return false;
+	}
 }
 
 // "For file I/O, the "\\?\" prefix to a path string tells the Windows APIs to disable all string parsing
@@ -1782,13 +1909,13 @@ int Version::compareTo(const Version& v2c) const
 
 bool Version::isCompatibleTo(const Version& from, const Version& to) const
 {
-	// This method determinates if Version object is in between "from" version and "to" version, it's useful for testing compatibility of application.
+	// This method determines if Version object is in between "from" version and "to" version, it's useful for testing compatibility of application.
 	// test in versions <from, to> example: 
 	// 1. <0.0.0.0, 0.0.0.0>: both from to versions are empty, so it's 
 	// 2. <6.9, 6.9>: plugin is compatible to only v6.9
 	// 3. <4.2, 6.6.6>: from v4.2 (included) to v6.6.6 (included)
 	// 4. <0.0.0.0, 8.2.1>: all version until v8.2.1 (included)
-	// 5. <8.3, 0.0.0.0>: from v8.3 (included) to the latest verrsion
+	// 5. <8.3, 0.0.0.0>: from v8.3 (included) to the latest version
 	
 	if (empty()) // if this version is empty, then no compatible to all version
 		return false;
@@ -1824,7 +1951,7 @@ struct GetDiskFreeSpaceParamResult
 	BOOL _result = FALSE;
 	bool _isTimeoutReached = true;
 
-	GetDiskFreeSpaceParamResult(wstring dirPath) : _dirPath(dirPath) {};
+	GetDiskFreeSpaceParamResult(wstring dirPath) : _dirPath(dirPath) {}
 };
 
 DWORD WINAPI getDiskFreeSpaceExWorker(void* data)
@@ -1833,7 +1960,7 @@ DWORD WINAPI getDiskFreeSpaceExWorker(void* data)
 	inAndOut->_result = ::GetDiskFreeSpaceExW(inAndOut->_dirPath.c_str(), &(inAndOut->_freeBytesForUser), nullptr, nullptr);
 	inAndOut->_isTimeoutReached = false;
 	return ERROR_SUCCESS;
-};
+}
 
 BOOL getDiskFreeSpaceWithTimeout(const wchar_t* dirPath, ULARGE_INTEGER* freeBytesForUser, DWORD milliSec2wait, bool* isTimeoutReached)
 {
@@ -1894,7 +2021,7 @@ DWORD WINAPI getFileAttributesExWorker(void* data)
 		inAndOut->_error = ::GetLastError();
 	inAndOut->_isTimeoutReached = false;
 	return ERROR_SUCCESS;
-};
+}
 
 BOOL getFileAttributesExWithTimeout(const wchar_t* filePath, WIN32_FILE_ATTRIBUTE_DATA* fileAttr,
 	DWORD milliSec2wait, bool* isTimeoutReached, DWORD* pdwWin32ApiError)
@@ -2012,7 +2139,10 @@ bool isWindowVisibleOnAnyMonitor(const RECT& rectWndIn)
 	return param4InOut.isWndVisibleOut;
 }
 
+#if defined(_MSC_VER)
 #pragma warning(disable:4996) // 'GetVersionExW': was declared deprecated
+#endif
+
 bool isCoreWindows()
 {
 	bool isCoreWindows = false;
@@ -2069,4 +2199,148 @@ bool isCoreWindows()
 
 	return isCoreWindows;
 }
+
+bool ControlInfoTip::init(HINSTANCE hInst, HWND ctrl2attached, HWND ctrl2attachedParent, const wstring& tipStr, bool isRTL, unsigned int remainTimeMillisecond /* = 0 */, int maxWidth /* = 200 */)
+{
+	_hWndInfoTip = CreateWindowEx(isRTL ? WS_EX_LAYOUTRTL : 0, TOOLTIPS_CLASS, NULL,
+		WS_POPUP | TTS_ALWAYSTIP | TTS_BALLOON,
+		CW_USEDEFAULT, CW_USEDEFAULT,
+		CW_USEDEFAULT, CW_USEDEFAULT,
+		ctrl2attachedParent, NULL,
+		hInst, NULL);
+
+	if (!_hWndInfoTip)
+		return false;
+
+	_toolInfo.cbSize = sizeof(_toolInfo);
+	_toolInfo.hwnd = ctrl2attachedParent;
+	_toolInfo.uFlags = TTF_IDISHWND | TTF_TRACK;
+	_toolInfo.uId = (UINT_PTR)ctrl2attached;
+	_toolInfo.lpszText = const_cast<PTSTR>(tipStr.c_str());
+
+	if (!SendMessage(_hWndInfoTip, TTM_ADDTOOL, 0, (LPARAM)&_toolInfo))
+	{
+		::DestroyWindow(_hWndInfoTip);
+		_hWndInfoTip = nullptr;
+		return false;
+	}
+
+	SendMessage(_hWndInfoTip, TTM_SETMAXTIPWIDTH, 0, maxWidth);
+	SendMessage(_hWndInfoTip, TTM_ACTIVATE, TRUE, 0);
+
+	if (remainTimeMillisecond)
+		SetTimer(ctrl2attachedParent, IDT_HIDE_TOOLTIP, remainTimeMillisecond, NULL);
+
+	return true;
+}
+
+void ControlInfoTip::show(showPosition pos) const
+{
+	if (!isValid())	return;
+
+	RECT rcComboBox;
+	GetWindowRect(reinterpret_cast<HWND>(_toolInfo.uId), &rcComboBox);
+
+	int xPos = 0;
+
+	if (pos == beginning)
+		xPos = rcComboBox.left + 15;
+	else if (pos == middle)
+		xPos = rcComboBox.left + (rcComboBox.right - rcComboBox.left) / 2;
+	else // (pos == end)
+		xPos = rcComboBox.left + (rcComboBox.right - rcComboBox.left) - 15;
+
+	int yPos = rcComboBox.top + 25;
+
+	SendMessage(_hWndInfoTip, TTM_TRACKPOSITION, 0, MAKELPARAM(xPos, yPos));
+	SendMessage(_hWndInfoTip, TTM_TRACKACTIVATE, (WPARAM)TRUE, (LPARAM)&_toolInfo);
+}
+
+void ControlInfoTip::hide()
+{
+	if (_hWndInfoTip)
+	{
+		SendMessage(_hWndInfoTip, TTM_TRACKACTIVATE, (WPARAM)FALSE, (LPARAM)&_toolInfo);
+		DestroyWindow(_hWndInfoTip);
+		_hWndInfoTip = nullptr;
+	}
+}
+
+#if defined(_MSC_VER)
 #pragma warning(default:4996)
+#endif
+
+DWORD invokeNppUacOp(const std::wstring& strCmdLineParams)
+{
+	if ((strCmdLineParams.length() == 0) || (strCmdLineParams.length() > (USHRT_MAX / sizeof(WCHAR))))
+	{
+		// no cmdline or it exceeds the current max WinOS 32767 WCHARs
+		return ERROR_INVALID_PARAMETER;
+	}
+
+	wchar_t wszNppFullPath[MAX_PATH]{};
+	::SetLastError(NO_ERROR);
+	if (!::GetModuleFileName(NULL, wszNppFullPath, MAX_PATH) || (::GetLastError() == ERROR_INSUFFICIENT_BUFFER))
+	{
+		return ::GetLastError();
+	}
+
+	SHELLEXECUTEINFOW sei{};
+	sei.cbSize = sizeof(SHELLEXECUTEINFOW);
+	sei.lpVerb = L"runas"; // UAC prompt
+	sei.nShow = SW_SHOWNORMAL;
+	sei.fMask = SEE_MASK_NOCLOSEPROCESS; // sei.hProcess member receives the launched process handle
+	sei.lpFile = wszNppFullPath;
+	sei.lpParameters = strCmdLineParams.c_str();
+	if (!::ShellExecuteExW(&sei))
+		return ::GetLastError();
+
+	// wait for the elevated Notepad++ process to finish
+	DWORD dwError = NO_ERROR;
+	if (sei.hProcess) // beware - do not check here for the INVALID_HANDLE_VALUE (valid GetCurrentProcess() pseudohandle)
+	{
+		::WaitForSingleObject(sei.hProcess, INFINITE);
+		::GetExitCodeProcess(sei.hProcess, &dwError);
+		::CloseHandle(sei.hProcess);
+	}
+
+	return dwError;
+}
+
+bool fileTimeToYMD(const FILETIME& ft, int& yyyymmdd)
+{
+	SYSTEMTIME stUtc;
+	SYSTEMTIME stLocal;
+
+	if (!FileTimeToSystemTime(&ft, &stUtc))
+		return false;
+
+	if (!SystemTimeToTzSpecificLocalTime(NULL, &stUtc, &stLocal))
+		return false;
+
+	yyyymmdd = (stLocal.wYear * 10000) + (stLocal.wMonth * 100) + stLocal.wDay;
+
+	return true;
+}
+
+void expandEnv(wstring& s)
+{
+	wchar_t buffer[MAX_PATH] = { '\0' };
+	// This returns the resulting string length or 0 in case of error.
+	DWORD ret = ExpandEnvironmentStrings(s.c_str(), buffer, static_cast<DWORD>(std::size(buffer)));
+	if (ret != 0)
+	{
+		if (ret == static_cast<DWORD>(lstrlen(buffer) + 1))
+		{
+			s = buffer;
+		}
+		else
+		{
+			// Buffer was too small, try with a bigger buffer of the required size.
+			std::vector<wchar_t> buffer2(ret, 0);
+			ret = ExpandEnvironmentStrings(s.c_str(), buffer2.data(), static_cast<DWORD>(buffer2.size()));
+			assert(ret == static_cast<DWORD>(lstrlen(buffer2.data()) + 1));
+			s = buffer2.data();
+		}
+	}
+}

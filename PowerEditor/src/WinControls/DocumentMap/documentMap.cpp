@@ -16,8 +16,18 @@
 
 
 #include "documentMap.h"
+
+#include <commctrl.h>
+
+#include "NppConstants.h"
 #include "ScintillaEditView.h"
 
+
+#define DOCUMENTMAP_SCROLL        (WM_USER + 4) // DM_SETDEFID uses WM_USER + 1
+#define DOCUMENTMAP_MOUSECLICKED  (WM_USER + 5) // DM_REPOSITION uses WM_USER + 2
+
+static constexpr bool moveDown = true;
+static constexpr bool moveUp = false;
 
 void DocumentMap::reloadMap()
 {
@@ -152,8 +162,9 @@ sprintf(dchar, "%f", ddd);
 		// 19     => 11.5
 		// 20     => 12
 */
-double zoomRatio[] = {1, 1, 1, 1, 1.5, 2, 2.5, 2.5, 3.5, 3.5,\
-4, 4.5, 5, 5, 5.5, 6, 6.5, 7, 7, 7.5, 8, 8.5, 8.5, 9.5, 9.5, 10, 10.5, 11, 11, 11.5, 12};
+
+static constexpr double zoomRatio[]{ 1, 1, 1, 1, 1.5, 2, 2.5, 2.5, 3.5, 3.5,
+4, 4.5, 5, 5, 5.5, 6, 6.5, 7, 7, 7.5, 8, 8.5, 8.5, 9.5, 9.5, 10, 10.5, 11, 11, 11.5, 12 };
 
 void DocumentMap::wrapMap(const ScintillaEditView *editView)
 {
@@ -373,7 +384,7 @@ intptr_t CALLBACK DocumentMap::run_dlgProc(UINT message, WPARAM wParam, LPARAM l
 
 		case WM_NOTIFY:
 		{
-			switch (((LPNMHDR)lParam)->code)
+			switch (reinterpret_cast<LPNMHDR>(lParam)->code)
 			{
 				case DMN_CLOSE:
 				{
@@ -436,13 +447,13 @@ intptr_t CALLBACK DocumentMap::run_dlgProc(UINT message, WPARAM wParam, LPARAM l
 
 		case DOCUMENTMAP_MOUSEWHEEL:
 		{
-			(*_ppEditView)->mouseWheel(wParam, lParam);
+			::SendMessage((*_ppEditView)->getHSelf(), DOCUMENTMAP_MOUSEWHEEL, wParam, lParam);
+			return TRUE;
 		}
-		return TRUE;
 
-        default :
-            return DockingDlgInterface::run_dlgProc(message, wParam, lParam);
-    }
+		default:
+			break;
+	}
 	return DockingDlgInterface::run_dlgProc(message, wParam, lParam);
 }
 
@@ -498,15 +509,14 @@ void ViewZoneDlg::doDialog()
 
 intptr_t CALLBACK ViewZoneDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
-	switch (message) 
+	switch (message)
 	{
-        case WM_INITDIALOG :
+		case WM_INITDIALOG:
 		{
 			_viewZoneCanvas = ::GetDlgItem(_hSelf, IDC_VIEWZONECANVAS);
-			if (NULL != _viewZoneCanvas)
+			if (_viewZoneCanvas != nullptr)
 			{
-				::SetWindowLongPtr(_viewZoneCanvas, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-				_canvasDefaultProc = reinterpret_cast<WNDPROC>(::SetWindowLongPtr(_viewZoneCanvas, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(canvasStaticProc)));
+				::SetWindowSubclass(_viewZoneCanvas, ViewZoneDlg::CanvasProc, static_cast<UINT_PTR>(SubclassID::first), 0);
 				return TRUE;
 			}
 			break;
@@ -525,9 +535,9 @@ intptr_t CALLBACK ViewZoneDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM l
 			break;
 		}
 
-		case WM_DRAWITEM :
+		case WM_DRAWITEM:
 		{
-			drawPreviewZone((DRAWITEMSTRUCT *)lParam);
+			drawPreviewZone(reinterpret_cast<DRAWITEMSTRUCT*>(lParam));
 			return TRUE;
 		}
 
@@ -544,7 +554,7 @@ intptr_t CALLBACK ViewZoneDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM l
 
 		case WM_MOUSEWHEEL :
 		{
-			//Have to perform the scroll first, because the first/last line do not get updated untill after the scroll has been parsed
+			//Have to perform the scroll first, because the first/last line do not get updated until after the scroll has been parsed
 			::SendMessage(_hParent, DOCUMENTMAP_MOUSEWHEEL, wParam, lParam);
 			return TRUE;
 		}
@@ -557,55 +567,60 @@ intptr_t CALLBACK ViewZoneDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM l
 	return FALSE;
 }
 
-LRESULT CALLBACK ViewZoneDlg::canvasStaticProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) 
+LRESULT CALLBACK ViewZoneDlg::CanvasProc(
+	HWND hWnd,
+	UINT uMsg,
+	WPARAM wParam,
+	LPARAM lParam,
+	UINT_PTR uIdSubclass,
+	[[maybe_unused]] DWORD_PTR /*dwRefData*/
+)
 {
-	ViewZoneDlg *pViewZoneDlg = reinterpret_cast<ViewZoneDlg *>(::GetWindowLongPtr(hwnd, GWLP_USERDATA));
-	if (!pViewZoneDlg)
-		return FALSE;
-	return pViewZoneDlg->canvas_runProc(hwnd, message, wParam, lParam);
-}
-
-LRESULT CALLBACK ViewZoneDlg::canvas_runProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-	switch (message)
-    {
-		case WM_DESTROY:
+	switch (uMsg)
+	{
+		case WM_NCDESTROY:
 		{
-			//::MessageBoxA(NULL,"Destroy","",MB_OK);
+			::RemoveWindowSubclass(hWnd, ViewZoneDlg::CanvasProc, uIdSubclass);
+			break;
 		}
-		return TRUE;
 
 		case WM_KEYDOWN:
-			if (wParam == VK_UP)
+		{
+			HWND hParent = ::GetParent(::GetParent(hWnd));
+			switch (wParam)
 			{
-				::SendMessage(_hParent, DOCUMENTMAP_SCROLL, static_cast<WPARAM>(moveUp), 0);
-			}
-			if (wParam == VK_DOWN)
-			{
-				::SendMessage(_hParent, DOCUMENTMAP_SCROLL, static_cast<WPARAM>(moveDown), 0);
-			}
-			if (wParam == VK_PRIOR)
-			{
-				::SendMessage(_hParent, DOCUMENTMAP_SCROLL, static_cast<WPARAM>(moveUp), 1);
-			}
-			if (wParam == VK_NEXT)
-			{
-				::SendMessage(_hParent, DOCUMENTMAP_SCROLL, static_cast<WPARAM>(moveDown), 1);
+				case VK_UP:
+				{
+					::SendMessage(hParent, DOCUMENTMAP_SCROLL, static_cast<WPARAM>(moveUp), 0);
+					break;
+				}
+
+				case VK_DOWN:
+				{
+					::SendMessage(hParent, DOCUMENTMAP_SCROLL, static_cast<WPARAM>(moveDown), 0);
+					break;
+				}
+
+				case VK_PRIOR:
+				{
+					::SendMessage(hParent, DOCUMENTMAP_SCROLL, static_cast<WPARAM>(moveUp), 1);
+					break;
+				}
+
+				case VK_NEXT:
+				{
+					::SendMessage(hParent, DOCUMENTMAP_SCROLL, static_cast<WPARAM>(moveDown), 1);
+					break;
+				}
+
+				default:
+					break;
 			}
 			break;
-
-        case WM_SIZE:
-        {
-            break;
-        }
-
-		case WM_NOTIFY:
-		{
 		}
-		return TRUE;
 
-        default :
-            return _canvasDefaultProc(hwnd, message, wParam, lParam);
-    }
-	return _canvasDefaultProc(hwnd, message, wParam, lParam);
+		 default:
+			break;
+	}
+	return ::DefSubclassProc(hWnd, uMsg, wParam, lParam);
 }

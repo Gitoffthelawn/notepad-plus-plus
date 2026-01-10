@@ -324,6 +324,9 @@ void ProjectPanel::destroyMenus()
 
 bool ProjectPanel::openWorkSpace(const wchar_t *projectFileName, bool force)
 {
+	if (!projectFileName)
+		return false;
+
 	if ((!force) && (_workSpaceFilePath.length() > 0))
 	{ // Return if it is better to keep the current workspace tree
 		wstring newWorkspace = projectFileName;
@@ -1208,7 +1211,7 @@ bool ProjectPanel::saveWorkSpaceAs(bool saveCopyAs)
 {
 	CustomFileDialog fDlg(_hSelf);
 	setFileExtFilter(fDlg);
-	fDlg.setExtIndex(0);		// 0 index for "custom extention" type if any else for "All types *.*"
+	fDlg.setExtIndex(0);		// 0 index for "custom extension" type if any else for "All types *.*"
 	fDlg.setFolder(getWorkSpaceFilePath());
 
 	const wstring fn = fDlg.doSaveDlg();
@@ -1421,13 +1424,5 @@ int FileRelocalizerDlg::doDialog(const wchar_t *fn, bool isRTL)
 {
 	_fullFilePath = fn;
 
-	if (isRTL)
-	{
-		DLGTEMPLATE *pMyDlgTemplate = NULL;
-		HGLOBAL hMyDlgTemplate = makeRTLResource(IDD_FILERELOCALIZER_DIALOG, &pMyDlgTemplate);
-		int result = static_cast<int32_t>(::DialogBoxIndirectParam(_hInst, pMyDlgTemplate, _hParent, dlgProc, reinterpret_cast<LPARAM>(this)));
-		::GlobalFree(hMyDlgTemplate);
-		return result;
-	}
-	return static_cast<int32_t>(::DialogBoxParam(_hInst, MAKEINTRESOURCE(IDD_FILERELOCALIZER_DIALOG), _hParent, dlgProc, reinterpret_cast<LPARAM>(this)));
+	return static_cast<int>(StaticDialog::myCreateDialogBoxIndirectParam(IDD_FILERELOCALIZER_DIALOG, isRTL));
 }

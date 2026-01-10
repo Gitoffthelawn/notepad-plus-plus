@@ -64,7 +64,7 @@ IDI_CHAMELEON_DM                ICON      "icons/dark/about/chameleon.ico"
 //IDI_SAMESEXMARRIAGE           ICON      "icons/same-sexMarriageTaiwan.ico"
 //IDI_TAIWANSSOVEREIGNTY        ICON      "icons/standard/about/logo_taiwan-grey.ico"
 //IDI_TAIWANSSOVEREIGNTY_DM     ICON      "icons/dark/about/logo_taiwan-grey.ico"
-IDI_WITHUKRAINE                 ICON      "icons/standard/about/withUkraine.ico"
+//IDI_WITHUKRAINE               ICON      "icons/standard/about/withUkraine.ico"
 IDI_ICONABSENT                  ICON      "icons/iconAbsent.ico"
 
 //
@@ -284,6 +284,9 @@ IDI_UNSAVED_ALT_ICON            ICON      "icons/standard/tabbar/unsaved_alt.ico
 IDI_READONLY_ICON               ICON      "icons/standard/tabbar/readonly.ico"
 IDI_READONLY_DM_ICON            ICON      "icons/dark/tabbar/readonly.ico"
 IDI_READONLY_ALT_ICON           ICON      "icons/standard/tabbar/readonly_alt.ico"
+IDI_READONLYSYS_ICON            ICON      "icons/standard/tabbar/readonly_sys.ico"
+IDI_READONLYSYS_DM_ICON         ICON      "icons/dark/tabbar/readonly_sys.ico"
+IDI_READONLYSYS_ALT_ICON        ICON      "icons/standard/tabbar/readonly_sys_alt.ico"
 IDI_MONITORING_ICON             ICON      "icons/standard/tabbar/monitoring.ico"
 IDI_MONITORING_DM_ICON          ICON      "icons/dark/tabbar/monitoring.ico"
 
@@ -451,7 +454,7 @@ BEGIN
             MENUITEM "Folder as Workspace", IDM_FILE_CONTAININGFOLDERASWORKSPACE
         END
         MENUITEM "Open in &Default Viewer",          IDM_FILE_OPEN_DEFAULT_VIEWER
-        MENUITEM "Open Folder as &Workspace...",     IDM_FILE_OPENFOLDERASWORSPACE
+        MENUITEM "Open Folder as &Workspace...",     IDM_FILE_OPENFOLDERASWORKSPACE
         MENUITEM "Re&load from Disk",                IDM_FILE_RELOAD
         MENUITEM "&Save",                            IDM_FILE_SAVE
         MENUITEM "Save &As...",                      IDM_FILE_SAVEAS
@@ -545,6 +548,7 @@ BEGIN
             MENUITEM "Sort Lines As Integers Ascending",                 IDM_EDIT_SORTLINES_INTEGER_ASCENDING
             MENUITEM "Sort Lines As Decimals (Comma) Ascending",         IDM_EDIT_SORTLINES_DECIMALCOMMA_ASCENDING
             MENUITEM "Sort Lines As Decimals (Dot) Ascending",           IDM_EDIT_SORTLINES_DECIMALDOT_ASCENDING
+            MENUITEM "Sort Lines By Length Ascending",                   IDM_EDIT_SORTLINES_LENGTH_ASCENDING
             MENUITEM SEPARATOR
             MENUITEM "Sort Lines Lexicographically Descending",          IDM_EDIT_SORTLINES_LEXICOGRAPHIC_DESCENDING
             MENUITEM "Sort Lines Lex. Descending Ignoring Case",         IDM_EDIT_SORTLINES_LEXICO_CASE_INSENS_DESCENDING
@@ -552,6 +556,7 @@ BEGIN
             MENUITEM "Sort Lines As Integers Descending",                IDM_EDIT_SORTLINES_INTEGER_DESCENDING
             MENUITEM "Sort Lines As Decimals (Comma) Descending",        IDM_EDIT_SORTLINES_DECIMALCOMMA_DESCENDING
             MENUITEM "Sort Lines As Decimals (Dot) Descending",          IDM_EDIT_SORTLINES_DECIMALDOT_DESCENDING
+            MENUITEM "Sort Lines By Length Descending",                  IDM_EDIT_SORTLINES_LENGTH_DESCENDING
         END
         POPUP "Co&mment/Uncomment"
         BEGIN
@@ -628,8 +633,13 @@ BEGIN
         MENUITEM "Character &Panel",         IDM_EDIT_CHAR_PANEL
         MENUITEM "Clipboard &History",       IDM_EDIT_CLIPBOARDHISTORY_PANEL
         MENUITEM SEPARATOR
-        MENUITEM "&Set Read-Only",           IDM_EDIT_SETREADONLY
-        MENUITEM "Clear Read-Only Flag",     IDM_EDIT_CLEARREADONLY
+        POPUP "Read-&Only in Notepad++"
+        BEGIN
+            MENUITEM "Read-Only on Current Document",     IDM_EDIT_TOGGLEREADONLY
+            MENUITEM "Read-Only for All Documents",       IDM_EDIT_SETREADONLYFORALLDOCS
+            MENUITEM "Clear Read-Only for All Documents", IDM_EDIT_CLEARREADONLYFORALLDOCS
+        END
+        MENUITEM "Read-Only Attribute in Windows",    IDM_EDIT_TOGGLESYSTEMREADONLY
     END
 
     POPUP "&Search"
@@ -724,7 +734,7 @@ BEGIN
             MENUITEM "Paste to (Replace) Bookmarked Lines",    IDM_SEARCH_PASTEMARKEDLINES
             MENUITEM "Remove Bookmarked Lines",                IDM_SEARCH_DELETEMARKEDLINES
             MENUITEM "Remove Non-Bookmarked Lines",            IDM_SEARCH_DELETEUNMARKEDLINES
-            MENUITEM "Inverse Bookmark",                       IDM_SEARCH_INVERSEMARKS
+            MENUITEM "Inverse Bookmarks",                      IDM_SEARCH_INVERSEMARKS
         END
         MENUITEM SEPARATOR
         MENUITEM "Find characters in rang&e...",       IDM_SEARCH_FINDCHARINRANGE
@@ -1318,6 +1328,8 @@ BEGIN
                 MENUITEM "Type Z to A",                 IDM_WINDOW_SORT_FT_DSC
                 MENUITEM "Content Length Ascending",    IDM_WINDOW_SORT_FS_ASC
                 MENUITEM "Content Length Descending",   IDM_WINDOW_SORT_FS_DSC
+                MENUITEM "Modified Time Ascending",   	IDM_WINDOW_SORT_FD_ASC
+                MENUITEM "Modified Time Descending",  	IDM_WINDOW_SORT_FD_DSC
             END
         MENUITEM "&Windows...",                 IDM_WINDOW_WINDOWS
         MENUITEM SEPARATOR
@@ -1387,25 +1399,35 @@ BEGIN
 	//LTEXT           "Support Taiwan's Sovereignty", IDC_AUTHOR_NAME, 85, 38, 120, 10
 	//LTEXT           "支持台灣獨立", IDC_AUTHOR_NAME, 85, 38, 120, 10
 	//LTEXT           "Support Taiwan's return to the UN", IDC_AUTHOR_NAME, 85, 38, 130, 10
-	LTEXT           "We are with Ukraine", IDC_AUTHOR_NAME, 85, 38, 130, 10
-    //LTEXT           "Home:",IDC_STATIC,21,58,47,8
-    //LTEXT           "https://notepad-plus-plus.org/",IDC_HOME_ADDR,50,56,126,10
+	//LTEXT           "We are with Ukraine", IDC_AUTHOR_NAME, 85, 38, 130, 10
+    LTEXT           "Home:",IDC_STATIC,21,58,47,8
+    LTEXT           "https://notepad-plus-plus.org/",IDC_HOME_ADDR,50,56,126,10
     GROUPBOX        "GNU General Public Licence",IDC_STATIC,20,75,230,138,BS_CENTER
     DEFPUSHBUTTON   "OK",IDOK,110,220,50,14
     // IDC_LICENCE_EDIT should be the last line, don't know why
     EDITTEXT        IDC_LICENCE_EDIT,30,93,210,117,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | NOT WS_BORDER
 END
 
-IDD_DEBUGINFOBOX DIALOGEX 0, 0, 246, 195
+IDD_DEBUGINFOBOX DIALOGEX 0, 0, 300, 195
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE
 CAPTION "Debug Info"
 FONT 8, L"MS Shell Dlg", 0, 0, 0x1
 BEGIN
-    GROUPBOX        "",IDC_STATIC,8,3,230,151,BS_CENTER
-    EDITTEXT        IDC_DEBUGINFO_EDIT,18,16,210,128,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | NOT WS_BORDER | WS_VSCROLL
+    GROUPBOX        "",IDC_STATIC,8,3,284,151,BS_CENTER
+    EDITTEXT        IDC_DEBUGINFO_EDIT,18,16,264,128,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | NOT WS_BORDER | WS_VSCROLL
     PUSHBUTTON      "&Copy debug info to clipboard",IDC_DEBUGINFO_COPYLINK,8,157,126,14
-    DEFPUSHBUTTON   "OK",IDOK,98,175,50,14
+    DEFPUSHBUTTON   "OK",IDOK,125,175,50,14
+END
+
+IDD_COMMANDLINEARGSBOX DIALOGEX 0, 0, 435, 385
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_DLGMODALFRAME | WS_EX_WINDOWEDGE
+CAPTION "Command Line Arguments"
+FONT 8, L"MS Shell Dlg", 0, 0, 0x1
+BEGIN
+    EDITTEXT        IDC_COMMANDLINEARGS_EDIT,10,10,420,345,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | NOT WS_BORDER | WS_VSCROLL
+    DEFPUSHBUTTON   "OK",IDOK,185,360,50,14
 END
 
 IDD_DOSAVEORNOTBOX DIALOGEX 0, 0, 312, 80

@@ -29,26 +29,26 @@ public :
 	ColumnEditorDlg() = default;
 	void init(HINSTANCE hInst, HWND hPere, ScintillaEditView **ppEditView);
 
-	void create(int dialogID, bool isRTL = false, bool msgDestParent = true) override {
-		StaticDialog::create(dialogID, isRTL, msgDestParent);
-	};
-
 	void doDialog(bool isRTL = false) {
 		if (!isCreated())
 			create(IDD_COLUMNEDIT, isRTL);
 		const bool isTextMode = isCheckedOrNot(IDC_COL_TEXT_RADIO);
 		display();
 		::SetFocus(::GetDlgItem(_hSelf, isTextMode?IDC_COL_TEXT_EDIT:IDC_COL_INITNUM_EDIT));
-	};
+	}
 
 	void display(bool toShow = true) const override;
 	void switchTo(bool toText);
 	UCHAR getFormat();
 	ColumnEditorParam::leadingChoice getLeading();
+	UCHAR getHexCase();
 
 protected :
 	intptr_t CALLBACK run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam) override;
 
 private :
 	ScintillaEditView **_ppEditView = nullptr;
+	void setNumericFields(const ColumnEditorParam& colEditParam);
+	int getNumericFieldValueFromText(int formatChoice, wchar_t str[], size_t stringSize);
+	int sendValidationErrorMessage(int whichFlashRed, int formatChoice, wchar_t str[]);
 };

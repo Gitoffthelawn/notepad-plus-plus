@@ -409,7 +409,7 @@ void FunctionParser::funcParse(std::vector<foundInfo> & foundInfos, size_t begin
 		// dataToSearch & data2ToSearch are optional
 		if (!_functionNameExprArray.size() && !_classNameExprArray.size())
 		{
-			wchar_t foundData[1024];
+			wchar_t foundData[1024] {};
 			(*ppEditView)->getGenericText(foundData, 1024, targetStart, targetEnd);
 
 			fi._data = foundData; // whole found data
@@ -418,7 +418,7 @@ void FunctionParser::funcParse(std::vector<foundInfo> & foundInfos, size_t begin
 		}
 		else
 		{
-			intptr_t foundPos;
+			intptr_t foundPos = -1;
 			if (_functionNameExprArray.size())
 			{
 				fi._data = parseSubLevel(targetStart, targetEnd, _functionNameExprArray, foundPos, ppEditView);
@@ -539,7 +539,7 @@ size_t FunctionZoneParser::getBodyClosePos(size_t begin, const wchar_t *bodyOpen
 			// Treat it only if it's NOT in the comment zone
 			if (!isInZones(targetStart, commentZones))
 			{
-				// Now we determinate the symbol (open or close)
+				// Now we determine the symbol (open or close)
 				intptr_t tmpStart = (*ppEditView)->searchInTarget(bodyOpenSymbol, lstrlen(bodyOpenSymbol), targetStart, targetEnd);
 				if (tmpStart >= 0) // open symbol found 
 				{

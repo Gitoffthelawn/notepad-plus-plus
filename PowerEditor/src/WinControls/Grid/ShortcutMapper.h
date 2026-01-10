@@ -29,26 +29,18 @@ public:
 	ShortcutMapper() : StaticDialog(), _currentState(STATE_MENU) {
 		_shortcutFilter = std::vector<std::wstring>();
 		_dialogInitDone = false;
-	};
-	~ShortcutMapper() = default;
+	}
+	~ShortcutMapper() override = default;
 
 	void init(HINSTANCE hInst, HWND parent, GridState initState = STATE_MENU) {
-        Window::init(hInst, parent);
-        _currentState = initState;
-    };
+		Window::init(hInst, parent);
+		_currentState = initState;
+	}
 
-	void destroy() override {};
+	void destroy() override {}
 	void doDialog(bool isRTL = false) {
-		if (isRTL)
-		{
-			DLGTEMPLATE *pMyDlgTemplate = NULL;
-			HGLOBAL hMyDlgTemplate = makeRTLResource(IDD_SHORTCUTMAPPER_DLG, &pMyDlgTemplate);
-			::DialogBoxIndirectParam(_hInst, pMyDlgTemplate, _hParent, dlgProc, reinterpret_cast<LPARAM>(this));
-			::GlobalFree(hMyDlgTemplate);
-		}
-		else
-			::DialogBoxParam(_hInst, MAKEINTRESOURCE(IDD_SHORTCUTMAPPER_DLG), _hParent, dlgProc, reinterpret_cast<LPARAM>(this));
-	};
+		StaticDialog::myCreateDialogBoxIndirectParam(IDD_SHORTCUTMAPPER_DLG, isRTL);
+	}
 	void getClientRect(RECT & rc) const override;
 
 	bool findKeyConflicts(__inout_opt std::wstring * const keyConflictLocation,

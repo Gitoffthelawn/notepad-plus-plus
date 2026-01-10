@@ -17,52 +17,14 @@
 
 #include <shlwapi.h>
 #include "WordStyleDlg.h"
-#include "ScintillaEditView.h"
+#include "WordStyleDlgRes.h"
+#include "TabBar.h"
 #include "documentMap.h"
-#include "AutoCompletion.h"
 #include "preference_rc.h"
 #include "localization.h"
 
 using namespace std;
 
-LRESULT CALLBACK ColourStaticTextHooker::colourStaticProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
-{
-	switch(Message)
-	{
-		case WM_PAINT:
-		{
-			RECT rect{};
-			::GetClientRect(hwnd, &rect);
-
-			PAINTSTRUCT ps{};
-			HDC hdc = ::BeginPaint(hwnd, &ps);
-
-			::SetTextColor(hdc, _colour);
-
-			if (NppDarkMode::isEnabled())
-			{
-				::SetBkColor(hdc, NppDarkMode::getDlgBackgroundColor());
-			}
-
-			// Get the default GUI font
-			LOGFONT lf{ DPIManagerV2::getDefaultGUIFontForDpi(hwnd) };
-			HFONT hf = ::CreateFontIndirect(&lf);
-
-			HANDLE hOld = ::SelectObject(hdc, hf);
-
-			// Draw the text!
-			wchar_t text[MAX_PATH]{};
-			::GetWindowText(hwnd, text, MAX_PATH);
-			::DrawText(hdc, text, -1, &rect, DT_LEFT);
-
-			::DeleteObject(::SelectObject(hdc, hOld));
-			::EndPaint(hwnd, &ps);
-
-			return TRUE;
-		}
-	}
-	return ::CallWindowProc(_oldProc, hwnd, Message, wParam, lParam);
-}
 void WordStyleDlg::updateGlobalOverrideCtrls()
 {
 	const NppGUI & nppGUI = (NppParameters::getInstance()).getNppGUI();
@@ -94,9 +56,6 @@ intptr_t CALLBACK WordStyleDlg::run_dlgProc(UINT Message, WPARAM wParam, LPARAM 
 			_hFontNameStaticText = ::GetDlgItem(_hSelf, IDC_FONTNAME_STATIC);
 			_hFontSizeStaticText = ::GetDlgItem(_hSelf, IDC_FONTSIZE_STATIC);
 			_hStyleInfoStaticText = ::GetDlgItem(_hSelf, IDC_STYLEDESCRIPTION_STATIC);
-
-			_colourHooker.setColour(RGB(0xFF, 0x00, 0x00));
-			_colourHooker.hookOn(_hStyleInfoStaticText);
 
 			_currentThemeIndex = -1;
 			int defaultThemeIndex = 0;
@@ -197,6 +156,11 @@ intptr_t CALLBACK WordStyleDlg::run_dlgProc(UINT Message, WPARAM wParam, LPARAM 
 			auto hdcStatic = reinterpret_cast<HDC>(wParam);
 			auto dlgCtrlID = ::GetDlgCtrlID(reinterpret_cast<HWND>(lParam));
 
+			if (dlgCtrlID == IDC_STYLEDESCRIPTION_STATIC)
+			{
+				return NppDarkMode::onCtlColorDlgLinkText(hdcStatic, true);
+			}
+
 			bool isStaticText = (dlgCtrlID == IDC_FG_STATIC ||
 				dlgCtrlID == IDC_BG_STATIC ||
 				dlgCtrlID == IDC_FONTNAME_STATIC ||
@@ -276,8 +240,6 @@ intptr_t CALLBACK WordStyleDlg::run_dlgProc(UINT Message, WPARAM wParam, LPARAM 
 		case WM_DPICHANGED:
 		{
 			_dpiManager.setDpiWP(wParam);
-
-			_goToSettings.destroy();
 
 			const int cpDynamicalSize = _dpiManager.scale(25);
 			move2CtrlRight(IDC_FG_STATIC, _pFgColour->getHSelf(), cpDynamicalSize, cpDynamicalSize);
@@ -654,7 +616,7 @@ void WordStyleDlg::loadLangListFromNppParam()
 void WordStyleDlg::updateThemeName(const wstring& themeName)
 {
 	NppParameters& nppParam = NppParameters::getInstance();
-	NppGUI & nppGUI = (NppGUI & )nppParam.getNppGUI();
+	NppGUI& nppGUI = nppParam.getNppGUI();
 	nppGUI._themeName.assign( themeName );
 }
 
@@ -1022,7 +984,9 @@ void WordStyleDlg::setStyleListFromLexer(int index)
 		const wchar_t *langName = _lsArray.getLexerNameFromIndex(index - 1);
 		const wchar_t *ext = NppParameters::getInstance().getLangExtFromName(langName);
 		const wchar_t *userExt = (_lsArray.getLexerStylerByName(langName))->getLexerUserExt();
-		::SendDlgItemMessage(_hSelf, IDC_DEF_EXT_EDIT, WM_SETTEXT, 0, reinterpret_cast<LPARAM>(ext));
+
+		if (ext)
+			::SendDlgItemMessage(_hSelf, IDC_DEF_EXT_EDIT, WM_SETTEXT, 0, reinterpret_cast<LPARAM>(ext));
 
 		// WM_SETTEXT cause sending WM_COMMAND message with EN_CHANGE.
 		// That makes status dirty, even it shouldn't in this case.
@@ -1068,6 +1032,8 @@ std::pair<intptr_t, intptr_t> WordStyleDlg::goToPreferencesSettings()
 
 	enum preferencesSectionPage {
 		general = 0,
+		toolbar,
+		tabbar,
 		edit1,
 		edit2,
 		darkMode,
@@ -1099,10 +1065,15 @@ std::pair<intptr_t, intptr_t> WordStyleDlg::goToPreferencesSettings()
 		result.first = edit1;
 		result.second = IDC_RADIO_CLM_HILITE;
 	}
+	else if (style._styleDesc == L"Multi-edit carets color" || style._styleDesc == L"Multi-selected text color")
+	{
+		result.first = edit2;
+		result.second = IDC_CHECK_MULTISELECTION;
+	}
 	else if (style._styleDesc == L"Caret colour")
 	{
 		result.first = edit1;
-		result.second = IDC_WIDTH_COMBO;
+		result.second = IDC_CARETSETTING_STATIC;
 	}
 	else if (style._styleDesc == L"Edge colour")
 	{
@@ -1124,12 +1095,12 @@ std::pair<intptr_t, intptr_t> WordStyleDlg::goToPreferencesSettings()
 		|| style._styleDesc == L"Change History saved")
 	{
 		result.first = margins;
-		result.second = IDC_CHECK_CHANGHISTORYMARGIN;
+		result.second = IDC_GB_CHANGHISTORY;
 	}
 	else if (style._styleDesc == L"Fold" || style._styleDesc == L"Fold active" || style._styleDesc == L"Fold margin")
 	{
 		result.first = margins;
-		result.second = IDC_RADIO_BOX;
+		result.second = IDC_FMS_GB_STATIC;
 	}
 	else if (style._styleDesc == L"Smart Highlighting")
 	{
@@ -1150,7 +1121,7 @@ std::pair<intptr_t, intptr_t> WordStyleDlg::goToPreferencesSettings()
 		|| style._styleDesc == L"Mark Style 4" || style._styleDesc == L"Mark Style 5")
 	{
 		result.first = highlighting;
-		result.second = IDC_CHECK_MARKALLCASESENSITIVE;
+		result.second = IDC_MARKALL_STATIC;
 	}
 	else if (style._styleDesc == L"URL hovered")
 	{
@@ -1162,9 +1133,14 @@ std::pair<intptr_t, intptr_t> WordStyleDlg::goToPreferencesSettings()
 		result.first = edit2;
 		result.second = IDC_CHECK_WITHCUSTOMCOLOR_CRLF;
 	}
+	else if (style._styleDesc == L"Active tab focused indicator" || style._styleDesc == L"Active tab unfocused indicator")
+	{
+		result.first = tabbar;
+		result.second = IDC_CHECK_ORANGE;
+	}
 	else if (style._styleDesc == L"Inactive tabs")
 	{
-		result.first = general;
+		result.first = tabbar;
 		result.second = IDC_CHECK_DRAWINACTIVE;
 	}
 	else if (style._styleDesc == g_npcStyleName)
@@ -1208,7 +1184,6 @@ void WordStyleDlg::setVisualFromStyleList()
 	//--Warning text
 	//bool showWarning = ((_currentLexerIndex == 0) && (style._styleID == STYLE_DEFAULT));//?SW_SHOW:SW_HIDE;
 
-	COLORREF c = NppDarkMode::isEnabled() ? NppDarkMode::getLinkTextColor() : RGB(0x00, 0x00, 0xFF);
 	const size_t strLen = 256;
 	wchar_t str[strLen + 1] = { '\0' };
 
@@ -1235,9 +1210,6 @@ void WordStyleDlg::setVisualFromStyleList()
 	wcscat_s(str, L": ");
 	wcscat_s(str, styleName);
 
-	// PAD for fix a display glitch
-	wcscat_s(str, L"          ");
-	_colourHooker.setColour(c);
 	::SetWindowText(_hStyleInfoStaticText, str);
 
 	//-- 2 couleurs : fg et bg
@@ -1352,9 +1324,9 @@ void WordStyleDlg::setVisualFromStyleList()
 }
 
 
-void WordStyleDlg::create(int dialogID, bool isRTL, bool msgDestParent)
+void WordStyleDlg::create(int dialogID, bool isRTL, bool msgDestParent, WORD fontSize)
 {
-	StaticDialog::create(dialogID, isRTL, msgDestParent);
+	StaticDialog::create(dialogID, isRTL, msgDestParent, fontSize);
 
 	if ((NppParameters::getInstance()).isTransparentAvailable())
 	{
@@ -1372,7 +1344,9 @@ void WordStyleDlg::doDialog(bool isRTL)
 {
 	if (!isCreated())
 	{
-		create(IDD_STYLER_DLG, isRTL);
+		const auto dpiContext = DPIManagerV2::setThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+		WordStyleDlg::create(IDD_STYLER_DLG, isRTL);
+		DPIManagerV2::setThreadDpiAwarenessContext(dpiContext);
 		prepare2Cancel();
 	}
 
@@ -1385,8 +1359,6 @@ void WordStyleDlg::doDialog(bool isRTL)
 
 void WordStyleDlg::destroy()
 {
-	_goToSettings.destroy();
-
 	if (_pFgColour != nullptr)
 	{
 		_pFgColour->destroy();

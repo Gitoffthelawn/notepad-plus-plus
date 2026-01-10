@@ -89,7 +89,7 @@ bool PluginsAdminDlg::isFoundInListFromIndex(const PluginViewList& inWhichList, 
 
 long PluginsAdminDlg::searchFromCurrentSel(const PluginViewList& inWhichList, const wstring& str2search, bool inWhichPart, bool isNextMode) const
 {
-	// search from curent selected item or from the beginning
+	// search from current selected item or from the beginning
 	long currentIndex = inWhichList.getSelectedIndex();
 	int nbItem = static_cast<int>(inWhichList.nbItem());
 	if (currentIndex == -1)
@@ -110,7 +110,7 @@ long PluginsAdminDlg::searchFromCurrentSel(const PluginViewList& inWhichList, co
 				return i;
 		}
 
-		// from to begining to current position
+		// from to beginning to current position
 		for (int i = 0; i < currentIndex + (isNextMode ? 1 : 0); ++i)
 		{
 			if (isFoundInListFromIndex(inWhichList, i, str2search, inWhichPart))
@@ -120,17 +120,16 @@ long PluginsAdminDlg::searchFromCurrentSel(const PluginViewList& inWhichList, co
 	return -1;
 }
 
-void PluginsAdminDlg::create(int dialogID, bool isRTL, bool msgDestParent)
+void PluginsAdminDlg::create(int dialogID, bool isRTL, bool msgDestParent, WORD fontSize)
 {
 	// get plugin installation path and launch mode (Admin or normal)
 	collectNppCurrentStatusInfos();
 
-	StaticDialog::create(dialogID, isRTL, msgDestParent);
+	StaticDialog::create(dialogID, isRTL, msgDestParent, fontSize);
 
 	RECT rect{};
 	getClientRect(rect);
 	_tab.init(_hInst, _hSelf, false, true);
-	NppDarkMode::subclassTabControl(_tab.getHSelf());
 
 	const wchar_t *available = L"Available";
 	const wchar_t *updates = L"Updates";
@@ -1079,7 +1078,7 @@ void PluginsAdminDlg::switchDialog(int indexToSwitch)
 		}
 		break;
 
-		case 3: // incompability plugins
+		case 3: // incompatible plugins
 		{
 			showAvailable = false;
 			showUpdate = false;
@@ -1178,7 +1177,6 @@ intptr_t CALLBACK PluginsAdminDlg::run_dlgProc(UINT message, WPARAM wParam, LPAR
 		case WM_DPICHANGED:
 		{
 			_dpiManager.setDpiWP(wParam);
-			_repoLink.destroy();
 
 			const size_t szColVer = _dpiManager.scale(100);
 			const size_t szColName = szColVer * 2;
@@ -1329,12 +1327,6 @@ intptr_t CALLBACK PluginsAdminDlg::run_dlgProc(UINT message, WPARAM wParam, LPAR
 				}
 			}
 
-			return TRUE;
-		}
-
-		case WM_DESTROY:
-		{
-			_repoLink.destroy();
 			return TRUE;
 		}
 	}

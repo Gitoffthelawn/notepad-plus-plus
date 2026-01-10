@@ -52,10 +52,11 @@ enum BufferStatusInfo {
 };
 
 enum SavingStatus {
-	SaveOK             = 0,
-	SaveOpenFailed     = 1,
-	SaveWritingFailed  = 2,
-	NotEnoughRoom      = 3
+	SaveOK                      = 0,
+	SaveOpenFailed              = 1,
+	SaveWritingFailed           = 2,
+	NotEnoughRoom               = 3,
+	FullReadOnlySavingForbidden = 4
 };
 
 struct BufferViewInfo {
@@ -63,7 +64,7 @@ struct BufferViewInfo {
 	int _iView = 0;
 
 	BufferViewInfo() = delete;
-	BufferViewInfo(BufferID buf, int view) : _bufID(buf), _iView(view) {};
+	BufferViewInfo(BufferID buf, int view) : _bufID(buf), _iView(view) {}
 };
 
 const wchar_t UNTITLED_STR[] = L"new ";
@@ -75,7 +76,7 @@ public:
 
 	void checkFilesystemChanges(bool bCheckOnlyCurrentBuffer);
 
-	size_t getNbBuffers() const { return _nbBufs; };
+	size_t getNbBuffers() const { return _nbBufs; }
 	size_t getNbDirtyBuffers() const;
 	int getBufferIndexByID(BufferID id);
 	Buffer * getBufferByIndex(size_t index);
@@ -110,17 +111,22 @@ public:
 	static FileManager& getInstance() {
 		static FileManager instance;
 		return instance;
-	};
+	}
 	int getFileNameFromBuffer(BufferID id, wchar_t * fn2copy);
 	size_t docLength(Buffer * buffer) const;
 	void removeHotSpot(Buffer * buffer) const;
 	size_t nextUntitledNewNumber() const;
 
+	void enableAutoDetectEncoding4Loading() { isAutoDetectEncodingDisabled4Loading = false; }
+	void disableAutoDetectEncoding4Loading() { isAutoDetectEncodingDisabled4Loading = true; } // Disable the encoding auto-detection on loading file while switching among the different encoding.
+	                                                                                          // The value of isAutoDetectEncodingDisabled4Loading will be restored to false after each file loading 
+	                                                                                          // to restore the encoding auto-detection ability for other file loading operations. 
+
 private:
 	struct LoadedFileFormat {
 		LoadedFileFormat() = default;
 		LangType _language = L_TEXT;
-		int _encoding = 0;
+		int _encoding = uni8Bit;
 		EolType _eolFormat = EolType::osdefault;
 	};
 
@@ -136,8 +142,10 @@ private:
 	FileManager& operator=(FileManager&&) = delete;
 
 	int detectCodepage(char* buf, size_t len);
+	bool isAutoDetectEncodingDisabled4Loading = false;
+
 	bool loadFileData(Document doc, int64_t fileSize, const wchar_t* filename, char* buffer, Utf8_16_Read* UnicodeConvertor, LoadedFileFormat& fileFormat);
-	LangType detectLanguageFromTextBegining(const unsigned char *data, size_t dataLen);
+	LangType detectLanguageFromTextBeginning(const unsigned char *data, size_t dataLen);
 
 	Notepad_plus* _pNotepadPlus = nullptr;
 	ScintillaEditView* _pscratchTilla = nullptr;
@@ -162,13 +170,19 @@ public:
 	Buffer(FileManager * pManager, BufferID id, Document doc, DocFileStatus type, const wchar_t *fileName, bool isLargeFile);
 
 	// this method 1. copies the file name
-	//             2. determinates the language from the ext of file name
+	//             2. determines the language from the ext of file name
 	//             3. gets the last modified time
 	void setFileName(const wchar_t *fn);
 
 	const wchar_t * getFullPathName() const { return _fullPathName.c_str(); }
 
 	const wchar_t * getFileName() const { return _fileName; }
+
+	const wchar_t* getCompactFileName() const { return _compactFileName.c_str(); }
+
+	void refreshCompactFileName();
+
+	void normalizeTabName(std::wstring& tabName);
 
 	BufferID getID() const { return _id; }
 
@@ -200,11 +214,7 @@ public:
 	}
 
 	bool getUserReadOnly() const { return _isUserReadOnly; }
-
-	void setUserReadOnly(bool ro) {
-		_isUserReadOnly = ro;
-		doNotify(BufferChangeReadonly);
-	}
+	void setUserReadOnly(bool ro);
 
 	EolType getEolFormat() const { return _eolFormat; }
 
@@ -269,6 +279,9 @@ public:
 		doNotify(BufferChangeLexing);
 	}
 
+	bool isUntitledTabRenamed() const { return _isUntitledTabRenamed; }
+	void setUntitledTabRenamedStatus(bool isRenamed) { _isUntitledTabRenamed = isRenamed; }
+
 	//these two return reference count after operation
 	int addReference(ScintillaEditView * identifier);		//if ID not registered, creates a new Position for that ID and new foldstate
 	int removeReference(const ScintillaEditView * identifier);		//reduces reference. If zero, Document is purged
@@ -313,7 +326,22 @@ public:
 	std::wstring getBackupFileName() const { return _backupFileName; }
 	void setBackupFileName(const std::wstring& fileName) { _backupFileName = fileName; }
 
-	FILETIME getLastModifiedTimestamp() const { return _timeStamp; }
+	FILETIME getLastModifiedFileTimestamp() const { return _timeStamp; }
+	FILETIME getLastModifiedTimestamp() const {
+		if (_backupFileName.empty())
+			return _timeStamp;
+
+		WIN32_FILE_ATTRIBUTE_DATA attributes{};
+		attributes.dwFileAttributes = INVALID_FILE_ATTRIBUTES;
+		bool bWorkerThreadTerminated = true;
+		DWORD dwWin32ApiError = NO_ERROR;
+		BOOL bGetFileAttributesExSucceeded = getFileAttributesExWithTimeout(_backupFileName.c_str(), &attributes, 0, &bWorkerThreadTerminated, &dwWin32ApiError);
+		if (bGetFileAttributesExSucceeded && (attributes.dwFileAttributes != INVALID_FILE_ATTRIBUTES) && !(attributes.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+		{
+			return attributes.ftLastWriteTime;
+		}
+		return _timeStamp;
+	}
 
 	bool isLoadedDirty() const { return _isLoadedDirty; }
 	void setLoadedDirty(bool val) {	_isLoadedDirty = val; }
@@ -329,23 +357,23 @@ public:
 	void startMonitoring() {
 		_isMonitoringOn = true;
 		_eventHandle = ::CreateEvent(nullptr, TRUE, FALSE, nullptr);
-	};
+	}
 
-	HANDLE getMonitoringEvent() const { return _eventHandle; };
+	HANDLE getMonitoringEvent() const { return _eventHandle; }
 
 	void stopMonitoring() {
 		_isMonitoringOn = false;
 		::SetEvent(_eventHandle);
 		::CloseHandle(_eventHandle);
-	};
+	}
 
-	bool isMonitoringOn() const { return _isMonitoringOn; };
+	bool isMonitoringOn() const { return _isMonitoringOn; }
 	void updateTimeStamp();
 	void reload();
-	void setMapPosition(const MapPosition & mapPosition) { _mapPosition = mapPosition; };
-	MapPosition getMapPosition() const { return _mapPosition; };
+	void setMapPosition(const MapPosition& mapPosition) { _mapPosition = mapPosition; }
+	MapPosition getMapPosition() const { return _mapPosition; }
 
-	void langHasBeenSetFromMenu() { _hasLangBeenSetFromMenu = true; };
+	void langHasBeenSetFromMenu() { _hasLangBeenSetFromMenu = true; }
 
 	bool allowBraceMach() const;
 	bool allowAutoCompletion() const;
@@ -354,17 +382,17 @@ public:
 
 	void setDocColorId(int idx) {
 		_docColorId = idx;
-	};
+	}
 
 	int getDocColorId() {
 		return _docColorId;
-	};
+	}
 
-	bool isRTL() const { return _isRTL; };
-	void setRTL(bool isRTL) { _isRTL = isRTL; };
+	bool isRTL() const { return _isRTL; }
+	void setRTL(bool isRTL) { _isRTL = isRTL; }
 
-	bool isPinned() const { return _isPinned; };
-	void setPinned(bool isPinned) { _isPinned = isPinned; };
+	bool isPinned() const { return _isPinned; }
+	void setPinned(bool isPinned) { _isPinned = isPinned; }
 
 private:
 	int indexOfReference(const ScintillaEditView * identifier) const;
@@ -392,12 +420,18 @@ private:
 	std::wstring _userLangExt; // it's useful if only (_lang == L_USER)
 	bool _isDirty = false;
 	EolType _eolFormat = EolType::osdefault;
-	UniMode _unicodeMode = uniUTF8;
+
+	// if _encoding == -1, then _unicodeMode is used.
+	// otherwise _encoding is used.
 	int _encoding = -1;
+	UniMode _unicodeMode = uniUTF8;
+
 	bool _isUserReadOnly = false;
 	bool _isFromNetwork = false;
 	bool _needLexer = false; // new buffers do not need lexing, Scintilla takes care of that
 	//these properties have to be duplicated because of multiple references
+
+	bool _isUntitledTabRenamed = false;
 
 	//All the vectors must have the same size at all times
 	std::vector<ScintillaEditView *> _referees; // Instances of ScintillaEditView which contain this buffer
@@ -411,6 +445,7 @@ private:
 	bool _isFileReadOnly = false;
 	std::wstring _fullPathName;
 	wchar_t * _fileName = nullptr; // points to filename part in _fullPathName
+	std::wstring _compactFileName; // shortened filename form of the _fileName with possible ellipsis (...) at the end
 	bool _needReloading = false; // True if Buffer needs to be reloaded on activation
 
 	std::wstring _tabCreatedTimeString;
@@ -425,8 +460,8 @@ private:
 	bool _isModified = false;
 	bool _isLoadedDirty = false; // it's the indicator for finding buffer's initial state
 
-	bool _isUnsync = false; // Buffer should be always dirty (with any undo/redo operation) if the editing buffer is unsyncronized with file on disk.
-	                        // By "unsyncronized" it means :
+	bool _isUnsync = false; // Buffer should be always dirty (with any undo/redo operation) if the editing buffer is unsynchronized with file on disk.
+	                        // By "unsynchronized" it means :
 	                        // 1. the file is deleted outside but the buffer in Notepad++ is kept.
 	                        // 2. the file is modified by another app but the buffer is not reloaded in Notepad++.
 	                        // Note that if the buffer is untitled, there's no correspondent file on the disk so the buffer is considered as independent therefore synchronized.

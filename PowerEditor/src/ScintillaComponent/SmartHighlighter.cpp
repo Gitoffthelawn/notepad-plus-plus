@@ -151,13 +151,9 @@ void SmartHighlighter::highlightView(ScintillaEditView * pHighlightView, Scintil
 			return;
 	}
 	
-	char * text2Find = new char[textlen + 1];
-	pHighlightView->getSelectedText(text2Find, textlen + 1, false); //do not expand selection (false)
-
-	WcharMbcsConvertor& wmc = WcharMbcsConvertor::getInstance();
-	UINT cp = static_cast<UINT>(pHighlightView->execute(SCI_GETCODEPAGE));
-	const wchar_t * text2FindW = wmc.char2wchar(text2Find, cp);
-
+	auto text2FindW = pHighlightView->getSelectedTextToWChar(false); //do not expand selection (false)
+	if (text2FindW.empty()) return;
+	
 	highlightViewWithWord(pHighlightView, text2FindW);
 
 	if (nppGUI._smartHiliteOnAnotherView && unfocusView && unfocusView->isVisible())
@@ -171,6 +167,7 @@ void SmartHighlighter::highlightView(ScintillaEditView * pHighlightView, Scintil
 		// Hightlight the unfocused view even if it's a clone, as it might be in a different area of the document
 		highlightViewWithWord(unfocusView, text2FindW);
 	}
-
-	delete[] text2Find;
 }
+
+
+

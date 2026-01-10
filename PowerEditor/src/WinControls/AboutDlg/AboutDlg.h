@@ -45,13 +45,12 @@ public :
 
 	void destroy() override {
 		//_emailLink.destroy();
-		_pageLink.destroy();
 		if (_hIcon != nullptr)
 		{
 			::DestroyIcon(_hIcon);
 			_hIcon = nullptr;
 		}
-	};
+	}
 
 protected :
 	intptr_t CALLBACK run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam) override;
@@ -72,13 +71,13 @@ public:
 		_isAdmin = isAdmin;
 		_loadedPlugins = loadedPlugins;
 		Window::init(hInst, parent);
-	};
+	}
 
 	void doDialog();
 
 	void refreshDebugInfo();
 
-	void destroy() override {};
+	void destroy() override {}
 
 protected:
 	intptr_t CALLBACK run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam) override;
@@ -92,6 +91,21 @@ private:
 	std::wstring _loadedPlugins;
 };
 
+
+class CmdLineArgsDlg : public StaticDialog
+{
+public:
+	CmdLineArgsDlg() = default;
+
+	void doDialog();
+	void destroy() override {}
+
+protected:
+	intptr_t CALLBACK run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam) override;
+
+	HFONT hCmdLineEditFont = nullptr;
+};
+
 class DoSaveOrNotBox : public StaticDialog
 {
 public:
@@ -103,15 +117,15 @@ public:
 			_fn = fn;
 
 		_isMulti = isMulti;
-	};
+	}
 
 	void doDialog(bool isRTL = false);
 
-	void destroy() override {};
+	void destroy() override {}
 
 	int getClickedButtonId() const {
 		return clickedButtonId;
-	};
+	}
 
 	void changeLang();
 
@@ -131,11 +145,11 @@ public:
 
 	void doDialog(bool isRTL = false);
 
-	void destroy() override {};
+	void destroy() override {}
 
 	int getClickedButtonId() const {
 		return clickedButtonId;
-	};
+	}
 
 	void changeLang();
 

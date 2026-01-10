@@ -15,40 +15,24 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 #pragma once
+
+#include "NppConstants.h"
 #include <vector>
 #include <string>
 #include <sstream>
 #include <windows.h>
+#include <commctrl.h>
 #include <iso646.h>
 #include <cstdint>
 #include <unordered_set>
 #include <algorithm>
 #include <tchar.h>
 
+#if defined(_MSC_VER)
 #pragma deprecated(PathFileExists)  // Use doesFileExist, doesDirectoryExist or doesPathExist (for file or directory) instead.
 #pragma deprecated(PathIsDirectory) // Use doesDirectoryExist instead.
-
-
-const bool dirUp = true;
-const bool dirDown = false;
-
-#define NPP_CP_WIN_1252           1252
-#define NPP_CP_DOS_437            437
-#define NPP_CP_BIG5               950
-
-#define LINKTRIGGERED WM_USER+555
-
-#define BCKGRD_COLOR (RGB(255,102,102))
-#define TXT_COLOR    (RGB(255,255,255))
-
-#ifndef __MINGW32__
-#define WCSTOK wcstok
-#else
-#define WCSTOK wcstok_s
 #endif
 
-
-#define NPP_INTERNAL_FUCTION_STR L"Notepad++::InternalFunction"
 
 
 std::wstring folderBrowser(HWND parent, const std::wstring & title = L"", int outputCtrlID = 0, const wchar_t *defaultStr = NULL);
@@ -72,7 +56,7 @@ std::string wstring2string(const std::wstring & rwString, UINT codepage);
 bool isInList(const wchar_t *token, const wchar_t *list);
 std::wstring BuildMenuFileName(int filenameLen, unsigned int pos, const std::wstring &filename, bool ordinalNumber = true);
 
-std::string getFileContent(const wchar_t *file2read);
+std::string getFileContent(const wchar_t* file2read, bool* pbFailed = nullptr);
 std::wstring relativeFilePathToFullFilePath(const wchar_t *relativeFilePath);
 void writeFileContent(const wchar_t *file2write, const char *content2write);
 bool matchInList(const wchar_t *fileName, const std::vector<std::wstring> & patterns);
@@ -89,10 +73,10 @@ public:
 
 	const wchar_t* char2wchar(const char* mbStr, size_t codepage, int lenMbcs = -1, int* pLenOut = NULL, int* pBytesNotProcessed = NULL);
 	const wchar_t* char2wchar(const char* mbcs2Convert, size_t codepage, intptr_t* mstart, intptr_t* mend, int len = 0);
-	size_t getSizeW() { return _wideCharStr.size(); };
+	size_t getSizeW() const { return _wideCharStr.size(); }
 	const char* wchar2char(const wchar_t* wcStr, size_t codepage, int lenIn = -1, int* pLenOut = NULL);
 	const char* wchar2char(const wchar_t* wcStr, size_t codepage, intptr_t* mstart, intptr_t* mend, int lenIn = 0, int* lenOut = nullptr);
-	size_t getSizeA() { return _multiByteStr.size(); };
+	size_t getSizeA() const { return _multiByteStr.size(); }
 
 	const char* encode(UINT fromCodepage, UINT toCodepage, const char* txt2Encode, int lenIn = -1, int* pLenOut = NULL, int* pBytesNotProcessed = NULL) {
 		int lenWc = 0;
@@ -153,8 +137,6 @@ protected:
 	StringBuffer<wchar_t> _wideCharStr;
 };
 
-#define REBARBAND_SIZE sizeof(REBARBANDINFO)
-
 std::wstring pathRemoveFileSpec(std::wstring & path);
 std::wstring pathAppend(std::wstring &strDest, const std::wstring & str2append);
 COLORREF getCtrlBgColor(HWND hWnd);
@@ -168,6 +150,7 @@ std::wstring stringTakeWhileAdmissable(const std::wstring& input, const std::wst
 double stodLocale(const std::wstring& str, _locale_t loc, size_t* idx = NULL);
 
 bool str2Clipboard(const std::wstring &str2cpy, HWND hwnd);
+std::wstring strFromClipboard();
 class Buffer;
 bool buf2Clipboard(const std::vector<Buffer*>& buffers, bool isFullPath, HWND hwnd);
 
@@ -220,6 +203,7 @@ std::wstring getDateTimeStrFrom(const std::wstring& dateTimeFormat, const SYSTEM
 
 HFONT createFont(const wchar_t* fontName, int fontSize, bool isBold, HWND hDestParent);
 bool removeReadOnlyFlagFromFileAttributes(const wchar_t* fileFullPath);
+bool toggleReadOnlyFlagFromFileAttributes(const wchar_t* fileFullPath, bool& isChangedToReadOnly);
 
 bool isWin32NamespacePrefixedFileName(const std::wstring& fileName);
 bool isWin32NamespacePrefixedFileName(const wchar_t* szFileName);
@@ -230,42 +214,42 @@ class Version final
 {
 public:
 	Version() = default;
-	Version(const std::wstring& versionStr);
+	explicit Version(const std::wstring& versionStr);
 
 	void setVersionFrom(const std::wstring& filePath);
 	std::wstring toString();
-	bool isNumber(const std::wstring& s) const {
+	static bool isNumber(const std::wstring& s) {
 		return !s.empty() &&
-			find_if(s.begin(), s.end(), [](wchar_t c) { return !_istdigit(c); }) == s.end();
-	};
+			find_if(s.begin(), s.end(), [](wchar_t c) { return !iswdigit(c); }) == s.end();
+	}
 
 	int compareTo(const Version& v2c) const;
 
 	bool operator < (const Version& v2c) const {
 		return compareTo(v2c) == -1;
-	};
+	}
 
 	bool operator <= (const Version& v2c) const {
 		int r = compareTo(v2c);
 		return r == -1 || r == 0;
-	};
+	}
 
 	bool operator > (const Version& v2c) const {
 		return compareTo(v2c) == 1;
-	};
+	}
 
 	bool operator >= (const Version& v2c) const {
 		int r = compareTo(v2c);
 		return r == 1 || r == 0;
-	};
+	}
 
 	bool operator == (const Version& v2c) const {
 		return compareTo(v2c) == 0;
-	};
+	}
 
 	bool operator != (const Version& v2c) const {
 		return compareTo(v2c) != 0;
-	};
+	}
 
 	bool empty() const {
 		return _major == 0 && _minor == 0 && _patch == 0 && _build == 0;
@@ -295,3 +279,73 @@ bool doesPathExist(const wchar_t* path, DWORD milliSec2wait = 0, bool* isTimeout
 bool isWindowVisibleOnAnyMonitor(const RECT& rectWndIn);
 
 bool isCoreWindows();
+
+
+class ControlInfoTip final
+{
+public:
+	ControlInfoTip() = default;
+	~ControlInfoTip() {
+		if (_hWndInfoTip) {
+			hide();
+		}
+	}
+
+	bool init(HINSTANCE hInst, HWND ctrl2attached, HWND ctrl2attachedParent, const std::wstring& tipStr, bool isRTL, unsigned int remainTimeMillisecond = 0, int maxWidth = 200); // remainTimeMillisecond = 0: no timeout
+
+	bool isValid() const {
+		return _hWndInfoTip != nullptr;
+	}
+
+	HWND getTipHandle() const {
+		return _hWndInfoTip;
+	}
+
+	enum showPosition {beginning, middle, end};
+	void show(showPosition pos = middle) const;
+	
+	void hide();
+
+private:
+	HWND _hWndInfoTip = nullptr;
+	TOOLINFO _toolInfo = {};
+
+	ControlInfoTip(const ControlInfoTip&) = delete;
+	ControlInfoTip& operator=(const ControlInfoTip&) = delete;
+};
+
+DWORD invokeNppUacOp(const std::wstring& strCmdLineParams);
+bool fileTimeToYMD(const FILETIME& ft, int& yyyymmdd);
+void expandEnv(std::wstring& path2Expand);
+
+class ScopedCOMInit final // never use this in DllMain
+{
+public:
+	ScopedCOMInit() {
+		HRESULT hr = ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED); // attempt STA init 1st (older CoInitialize(NULL))
+		if (hr == RPC_E_CHANGED_MODE) {
+			hr = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED); // STA init failed, switch to MTA
+		}
+		if (SUCCEEDED(hr)) {
+			// S_OK or S_FALSE, both needs subsequent CoUninitialize()
+			_bInitialized = true;
+		}
+	}
+
+	~ScopedCOMInit() {
+		if (_bInitialized) {
+			_bInitialized = false;
+			::CoUninitialize();
+		}
+	}
+
+	bool isInitialized() {
+		return _bInitialized;
+	}
+
+private:
+	bool _bInitialized = false;
+
+	ScopedCOMInit(const ScopedCOMInit&) = delete;
+	ScopedCOMInit& operator=(const ScopedCOMInit&) = delete;
+};

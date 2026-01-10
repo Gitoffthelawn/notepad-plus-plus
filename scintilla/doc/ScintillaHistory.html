@@ -590,9 +590,92 @@
 	<td>8day</td>
       </tr><tr>
 	<td>Ahmet Sait</td>
+	<td>Sven Ritter</td>
     </tr>
     </table>
     <h2 id="Releases">Releases</h2>
+    <h3>
+       <a href="https://www.scintilla.org/scintilla558.zip">Release 5.5.8</a>
+    </h3>
+    <ul>
+	<li>
+	Released 10 November 2025.
+	</li>
+	<li>
+	Change format for SCI_GETSELECTIONSERIALIZED.
+	<a href="https://sourceforge.net/p/scintilla/feature-requests/1563/">Feature #1563</a>.
+	</li>
+	<li>
+	Ensure selection drawn correctly when selection restored by undo.
+	<a href="https://sourceforge.net/p/scintilla/bugs/2487/">Bug #2487</a>.
+	</li>
+	<li>
+	Update to Unicode 16.
+	<a href="https://sourceforge.net/p/scintilla/feature-requests/1569/">Feature #1569</a>.
+	</li>
+	<li>
+	Fix bug when indenting rectangular selection.
+	<a href="https://sourceforge.net/p/scintilla/feature-requests/1567/">Feature #1567</a>.
+	</li>
+	<li>
+	Add PTRDIFF_DOESNT_ALIAS_INT preprocessor choice.
+	</li>
+	<li>
+	On Win32, force autocompletion list colours to be opaque.
+	Enlarge bitmap to avoid visible blank background between items.
+	<a href="https://sourceforge.net/p/scintilla/bugs/2482/">Bug #2482</a>.
+	</li>
+	<li>
+	On Cocoa, fix crash with bidirectional mode when scrolled before start of document.
+	</li>
+	<li>
+	On Cocoa, use same default calltip colours as other platforms for consistency.
+	<a href="https://sourceforge.net/p/scintilla/bugs/2486/">Bug #2486</a>.
+	</li>
+    </ul>
+    <h3>
+       <a href="https://www.scintilla.org/scintilla557.zip">Release 5.5.7</a>
+    </h3>
+    <ul>
+	<li>
+	Released 8 June 2025.
+	</li>
+	<li>
+	Add SCI_SCROLLVERTICAL method to restore view position and maintain it while performing line wrapping.
+	</li>
+	<li>
+	Add SC_UNDO_SELECTION_HISTORY_SCROLL flag to SCI_SETUNDOSELECTIONHISTORY which controls
+	whether undo and redo restore vertical scroll position.
+	</li>
+	<li>
+	Tweak SC_MARK_BAR to be slightly wider by using next higher whole pixel instead of next lower for margin width / 3.
+	</li>
+	<li>
+	Scale images in autocompletion lists with SCI_AUTOCSETIMAGESCALE to match high DPI screens.
+	Initially only on GTK and Qt.
+	</li>
+	<li>
+	Fix wrapping bug for UTF-8 where \r\n could wrap between the characters.
+	<a href="https://github.com/notepad-plus-plus/notepad-plus-plus/pull/16373">Notepad++ Pull Request #16373</a>.
+	</li>
+	<li>
+	Fix crash during painting when scroll bars changed.
+	<a href="https://sourceforge.net/p/scintilla/bugs/2481/">Bug #2481</a>.
+	</li>
+	<li>
+	On GTK, reset vertical scroll bar synchronously in SCI_SETDOCPOINTER to fix bug where
+	scroll position not restored in non-wrap mode.
+	<a href="https://sourceforge.net/p/scintilla/bugs/2416/">Bug #2416</a>.
+	</li>
+	<li>
+	On GTK, fix IME problem when tentative composition interfered with delete surrounding.
+	<a href="https://sourceforge.net/p/scintilla/feature-requests/1476/">Feature #1476</a>.
+	</li>
+	<li>
+	On GTK, update IME cursor position inside retrieve surrounding to better position candidate window.
+	<a href="https://sourceforge.net/p/scintilla/feature-requests/1488/">Feature #1488</a>.
+	</li>
+    </ul>
     <h3>
        <a href="https://www.scintilla.org/scintilla556.zip">Release 5.5.6</a>
     </h3>
@@ -1736,7 +1819,7 @@
 	</li>
 	<li>
 	Remove SetLexer, SetLexerLanguage, and LoadLexerLibrary methods.
-	These have been superceded by Lexilla and the SetILexer API.
+	These have been superseded by Lexilla and the SetILexer API.
 	</li>
 	<li>
 	Improve the platform layer interface.

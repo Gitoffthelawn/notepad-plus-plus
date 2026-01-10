@@ -337,7 +337,7 @@ bool PluginsManager::loadPlugins(const wchar_t* dir, const PluginViewList* plugi
 		const wchar_t* incompatibleWarningWithSolution = L"%s's version %s is not compatible to this version of Notepad++ (v%s).\r\nAs a result the plugin cannot be loaded.\r\n\r\nGo to Updates section and update your plugin to %s for solving the compatibility issue.";
 
 		wstring foundFileName = foundData.cFileName;
-		if (foundFileName != L"." && foundFileName != L".." && wcsicmp(foundFileName.c_str(), L"Config") != 0)
+		if (foundFileName != L"." && foundFileName != L".." && _wcsicmp(foundFileName.c_str(), L"Config") != 0)
 		{
 			wstring pluginsFullPathFilter = pluginsFolder;
 			pathAppend(pluginsFullPathFilter, foundFileName);
@@ -409,7 +409,7 @@ bool PluginsManager::loadPlugins(const wchar_t* dir, const PluginViewList* plugi
 		while (::FindNextFile(hFindFolder, &foundData))
 		{
 			wstring foundFileName2 = foundData.cFileName;
-			if (foundFileName2 != L"." && foundFileName2 != L".." && wcsicmp(foundFileName2.c_str(), L"Config") != 0)
+			if (foundFileName2 != L"." && foundFileName2 != L".." && _wcsicmp(foundFileName2.c_str(), L"Config") != 0)
 			{
 				wstring pluginsFullPathFilter2 = pluginsFolder;
 				pathAppend(pluginsFullPathFilter2, foundFileName2);
@@ -583,7 +583,7 @@ void PluginsManager::addInMenuFromPMIndex(int i)
 			itemName += pcs.toString();
 		}
 		else
-		{	//no ShortcutKey is provided, add an disabled shortcut (so it can still be mapped, Paramaters class can still index any changes and the toolbar wont funk out
+		{	//no ShortcutKey is provided, add an disabled shortcut (so it can still be mapped, Paramaters class can still index any changes and the toolbar won't funk out
             Shortcut sc(itemName.c_str(), false, false, false, 0x00);
             PluginCmdShortcut pcs(sc, cmdID, wstring2string(_pluginInfos[i]->_moduleName, CP_UTF8).c_str(), j);	//VK_NULL and everything disabled, the menu name is left alone
 			pluginCmdSCList.push_back(pcs);
@@ -652,7 +652,7 @@ void PluginsManager::runPluginCommand(const wchar_t *pluginName, int commandID)
 {
 	for (size_t i = 0, len = _pluginsCommands.size() ; i < len ; ++i)
 	{
-		if (!wcsicmp(_pluginsCommands[i]._pluginName.c_str(), pluginName))
+		if (!_wcsicmp(_pluginsCommands[i]._pluginName.c_str(), pluginName))
 		{
 			if (_pluginsCommands[i]._funcID == commandID)
 			{

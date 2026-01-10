@@ -21,9 +21,6 @@
 #define _WIN32_IE	0x0600
 #endif //_WIN32_IE
 
-#include "menuCmdID.h"
-#include "resource.h"
-#include <stdint.h>
 #include <windows.h>
 #include <commctrl.h>
 #include "Window.h"
@@ -40,7 +37,6 @@
 
 #define WM_TABSETSTYLE	(WM_APP + 0x024)
 
-const int marge = 8;
 const int nbCtrlMax = 10;
 
 const wchar_t TABBAR_ACTIVEFOCUSEDINDCATOR[64] = L"Active tab focused indicator";
@@ -82,20 +78,20 @@ class TabBar : public Window
 {
 public:
 	TabBar() = default;
-	virtual ~TabBar() = default;
+	~TabBar() override = default;
 	void destroy() override;
-	virtual void init(HINSTANCE hInst, HWND hwnd, bool isVertical = false, bool isMultiLine = false);
-	void reSizeTo(RECT& rc2Ajust) override;
+	virtual void init(HINSTANCE hInst, HWND parent, bool isVertical = false, bool isMultiLine = false);
+	void reSizeTo(RECT& rc2Adjust) override;
 	int insertAtEnd(const wchar_t *subTabName);
 	void activateAt(int index) const;
 	void getCurrentTitle(wchar_t *title, int titleLen);
 
-	int32_t getCurrentTabIndex() const {
-		return static_cast<int32_t>(SendMessage(_hSelf, TCM_GETCURSEL, 0, 0));
-	};
+	int getCurrentTabIndex() const {
+		return static_cast<int>(SendMessage(_hSelf, TCM_GETCURSEL, 0, 0));
+	}
 
-	int32_t getItemCount() const {
-		return static_cast<int32_t>(::SendMessage(_hSelf, TCM_GETITEMCOUNT, 0, 0));
+	int getItemCount() const {
+		return static_cast<int>(::SendMessage(_hSelf, TCM_GETITEMCOUNT, 0, 0));
 	}
 
 	void deletItemAt(size_t index);
@@ -103,13 +99,15 @@ public:
 	void deletAllItem() {
 		::SendMessage(_hSelf, TCM_DELETEALLITEMS, 0, 0);
 		_nbItem = 0;
-	};
+	}
 
 	void setImageList(HIMAGELIST himl);
 
     size_t nbItem() const {
         return _nbItem;
     }
+
+	void destroyFonts();
 
 	void setFont();
 
@@ -119,7 +117,7 @@ public:
 
 	int getNextOrPrevTabIdx(bool isNext) const;
 
-	DPIManagerV2& dpiManager() { return _dpiManager; };
+	DPIManagerV2& dpiManager() { return _dpiManager; }
 
 protected:
 	size_t _nbItem = 0;
@@ -148,7 +146,7 @@ struct TabButtonZone
 
 	bool isHit(int x, int y, const RECT & tabRect, bool isVertical) const;
 	RECT getButtonRectFrom(const RECT & tabRect, bool isVertical) const;
-	void setOrder(int newOrder) { _order = newOrder; };
+	void setOrder(int newOrder) { _order = newOrder; }
 
 	HWND _parent = nullptr;
 	int _width = 0;
@@ -170,18 +168,18 @@ public :
 		id0, id1, id2, id3, id4, id5, id6, id7, id8, id9
 	};
 
-	void init(HINSTANCE hInst, HWND hwnd, bool isVertical, bool isMultiLine, unsigned char buttonsStatus = 0);
+	void init(HINSTANCE hInst, HWND parent, bool isVertical, bool isMultiLine, unsigned char buttonsStatus = 0);
 
 	void destroy() override;
 
 	POINT getDraggingPoint() const {
 		return _draggingPoint;
-	};
+	}
 
 	void resetDraggingPoint() {
 		_draggingPoint.x = 0;
 		_draggingPoint.y = 0;
-	};
+	}
 
 	static void triggerOwnerDrawTabbar(DPIManagerV2* pDPIManager);
 	static void doVertical();
@@ -221,7 +219,6 @@ protected:
 	int _nTabDragged = -1;
 	int _previousTabSwapped = -1;
 	POINT _draggingPoint{}; // coordinate of Screen
-	WNDPROC _tabBarDefaultProc = nullptr;
 
 	RECT _currentHoverTabRect{};
 	int _currentHoverTabItem = -1; // -1 : no mouse on any tab
@@ -253,12 +250,10 @@ protected:
 	HWND _tooltips = nullptr;
 
 	LRESULT runProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam);
+	static LRESULT CALLBACK TabBarPlusProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 
-	static LRESULT CALLBACK TabBarPlus_Proc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) {
-		return (((TabBarPlus *)(::GetWindowLongPtr(hwnd, GWLP_USERDATA)))->runProc(hwnd, Message, wParam, lParam));
-	};
 	void setActiveTab(int tabIndex);
-	bool exchangeTabItemData(int oldTab, int newTab);
+	bool exchangeTabItemData(int oldTab, int newTab, bool setToActive = true);
 	void exchangeItemData(POINT point);
 
 	static COLORREF _activeTextColour;
@@ -277,11 +272,11 @@ protected:
 		return getTabIndexAt(p.x, p.y);
 	}
 
-	int32_t getTabIndexAt(int x, int y) const {
+	int getTabIndexAt(int x, int y) const {
 		TCHITTESTINFO hitInfo{};
 		hitInfo.pt.x = x;
 		hitInfo.pt.y = y;
-		return static_cast<int32_t>(::SendMessage(_hSelf, TCM_HITTEST, 0, reinterpret_cast<LPARAM>(&hitInfo)));
+		return static_cast<int>(::SendMessage(_hSelf, TCM_HITTEST, 0, reinterpret_cast<LPARAM>(&hitInfo)));
 	}
 
 	bool isPointInParentZone(POINT screenPoint) const {

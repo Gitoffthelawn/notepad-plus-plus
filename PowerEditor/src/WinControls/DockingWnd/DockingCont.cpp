@@ -79,7 +79,7 @@ void DockingCont::doDialog(bool willBeShown, bool isFloating)
 	if (!isCreated())
 	{
 		NativeLangSpeaker* pNativeSpeaker = NppParameters::getInstance().getNativeLangSpeaker();
-		create(IDD_CONTAINER_DLG, pNativeSpeaker->isRTL());
+		create(IDD_CONTAINER_DLG, pNativeSpeaker->isRTL(), true, 0);
 
 		_isFloating  = isFloating;
 
@@ -156,20 +156,15 @@ void DockingCont::removeToolbar(const tTbData& data)
 	}
 }
 
-
 tTbData* DockingCont::findToolbarByWnd(HWND hClient)
 {
-	tTbData*	pTbData		= NULL;
+	auto matchesWnd = [hClient](const tTbData* pTb) -> bool {
+			return pTb->hClient == hClient;
+		};
 
-	// find entry by handle
-	for (size_t iTb = 0, len = _vTbData.size(); iTb < len; ++iTb)
-	{
-		if (hClient == _vTbData[iTb]->hClient)
-		{
-			pTbData = _vTbData[iTb];
-		}
-	}
-	return pTbData;
+	auto it = std::find_if(_vTbData.begin(), _vTbData.end(), matchesWnd);
+
+	return (it != _vTbData.end()) ? *it : nullptr;
 }
 
 tTbData* DockingCont::findToolbarByName(wchar_t* pszName)
@@ -1150,12 +1145,10 @@ intptr_t CALLBACK DockingCont::run_dlgProc(UINT Message, WPARAM wParam, LPARAM l
 			_hCaption = ::GetDlgItem(_hSelf, IDC_BTN_CAPTION);
 
 			// intial subclassing of caption
-			constexpr UINT_PTR idSubclassCaption = 1;
-			::SetWindowSubclass(_hCaption, DockingCaptionSubclass, idSubclassCaption, reinterpret_cast<DWORD_PTR>(this));
+			::SetWindowSubclass(_hCaption, DockingCaptionSubclass, static_cast<UINT_PTR>(SubclassID::first), reinterpret_cast<DWORD_PTR>(this));
 
 			// intial subclassing of tab
-			constexpr UINT_PTR idSubclassTab = 2;
-			::SetWindowSubclass(_hContTab, DockingTabSubclass, idSubclassTab, reinterpret_cast<DWORD_PTR>(this));
+			::SetWindowSubclass(_hContTab, DockingTabSubclass, static_cast<UINT_PTR>(SubclassID::first), reinterpret_cast<DWORD_PTR>(this));
 
 			// set min tab width
 			const int tabDpiPadding = _dpiManager.scale(g_dockingContTabIconSize + g_dockingContTabIconPadding * 2);

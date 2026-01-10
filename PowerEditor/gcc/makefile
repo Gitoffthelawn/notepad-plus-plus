@@ -46,7 +46,7 @@ CXXFLAGS := -include $(GCC_DIRECTORY)/gcc-fixes.h -std=c++20
 RC := $(CROSS_COMPILE)windres
 RCFLAGS := --codepage=65001
 CPP_PATH := $(SCINTILLA_DIRECTORY)/include $(LEXILLA_DIRECTORY)/include
-CPP_DEFINE := UNICODE _UNICODE OEMRESOURCE NOMINMAX _WIN32_WINNT=_WIN32_WINNT_WIN7 NTDDI_VERSION=NTDDI_WIN7 TIXML_USE_STL TIXMLA_USE_STL
+CPP_DEFINE := UNICODE _UNICODE OEMRESOURCE NOMINMAX _WIN32_WINNT=_WIN32_WINNT_WIN7 NTDDI_VERSION=NTDDI_WIN7 TIXML_USE_STL
 LD := $(CXX)
 LDFLAGS := -municode -mwindows
 LD_PATH :=
@@ -64,13 +64,24 @@ LDFLAGS += -s
 else
 BUILD_TYPE := debug
 BUILD_SUFFIX := -debug
-CXXFLAGS += -Og -g -Wpedantic -Wall -Wextra -Wno-cast-function-type -Wno-overloaded-virtual -Wconversion
+CXXFLAGS += -Og \
+            -g \
+            -Wpedantic \
+            -Wall \
+            -Wextra \
+            -Wcast-align \
+            -Wconversion \
+            -Wextra-semi \
+            -Wformat=2 \
+            -Wmisleading-indentation \
+            -Wunused \
+            -Wno-cast-function-type \
+            -Wno-overloaded-virtual
 CPP_DEFINE += DEBUG
 endif
 
 ifeq ($(CXX),clang++)
   CXXFLAGS += -Wimplicit-fallthrough \
-              -Wformat=2 \
               -Wno-c++98-compat \
               -Wno-c++98-compat-pedantic \
               -Wno-reserved-id-macro \

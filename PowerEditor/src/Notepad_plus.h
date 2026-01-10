@@ -115,7 +115,7 @@ struct QuoteParams
 {
 	enum Speed { slow = 0, rapid, speedOfLight };
 
-	QuoteParams() {};
+	QuoteParams() {}
 	QuoteParams(const wchar_t* quoter, Speed speed, bool shouldBeTrolling, int encoding, LangType lang, const wchar_t* quote) :
 		_quoter(quoter), _speed(speed), _shouldBeTrolling(shouldBeTrolling), _encoding(encoding), _lang(lang), _quote(quote) {}
 
@@ -126,7 +126,7 @@ struct QuoteParams
 		_encoding = SC_CP_UTF8;
 		_lang = L_TEXT;
 		_quote = nullptr;
-	};
+	}
 
 	const wchar_t* _quoter = nullptr;
 	Speed _speed = rapid;
@@ -165,16 +165,15 @@ public:
 	void setTitle();
 	void getTaskListInfo(TaskListInfo *tli);
 	size_t getNbDirtyBuffer(int view);
-	// For filtering the modeless Dialog message
 
-	//! \name File Operations
-	//@{
-	//The doXXX functions apply to a single buffer and dont need to worry about views, with the excpetion of doClose, since closing one view doesnt have to mean the document is gone
+
+	// The following functions apply to a single buffer and don't need to worry about views, with the exception of doClose,
+	// since closing one view doesn't have to mean the document is gone
 	BufferID doOpen(const std::wstring& fileName, bool isRecursive = false, bool isReadOnly = false, int encoding = -1, const wchar_t *backupFileName = NULL, FILETIME fileNameTimestamp = {});
 	bool doReload(BufferID id, bool alert = true);
 	bool doSave(BufferID, const wchar_t * filename, bool isSaveCopy = false);
 	void doClose(BufferID, int whichOne, bool doDeleteBackup = false);
-	//bool doDelete(const wchar_t *fileName) const {return ::DeleteFile(fileName) != 0;};
+
 
 	void fileOpen();
 	void fileNew();
@@ -195,6 +194,7 @@ public:
 	bool fileDelete(BufferID id = BUFFER_INVALID);
 	bool fileRename(BufferID id = BUFFER_INVALID);
 	bool fileRenameUntitledPluginAPI(BufferID id, const wchar_t* tabNewName);
+	bool useFirstLineAsTabName(BufferID id);
 
 	void unPinnedForAllBuffers();
 	bool switchToFile(BufferID buffer);			//find buffer in active view then in other view.
@@ -216,7 +216,7 @@ public:
 	void saveCurrentSession();
 	void saveFindHistory();
 
-	void getCurrentOpenedFiles(Session& session, bool includUntitledDoc = false);
+	void getCurrentOpenedFiles(Session& session, bool includeUntitledDoc = false);
 
 	bool fileLoadSession(const wchar_t* fn = nullptr);
 	const wchar_t * fileSaveSession(size_t nbFile, wchar_t ** fileNames, const wchar_t *sessionFile2save, bool includeFileBrowser = false);
@@ -250,15 +250,15 @@ public:
 	std::vector<std::wstring> addNppPlugins(const wchar_t *extFilterName, const wchar_t *extFilter);
     int getHtmlXmlEncoding(const wchar_t *fileName) const;
 
-	HACCEL getAccTable() const{
+	HACCEL getAccTable() const {
 		return _accelerator.getAccTable();
-	};
+	}
 
 	bool emergency(const std::wstring& emergencySavedDir);
 
 	Buffer* getCurrentBuffer()	{
 		return _pEditView->getCurrentBuffer();
-	};
+	}
 
 	void launchDocumentBackupTask();
 	int getQuoteIndexFrom(const wchar_t* quoter) const;
@@ -267,12 +267,16 @@ public:
 
 	std::wstring getPluginListVerStr() const {
 		return _pluginsAdminDlg.getPluginListVerStr();
-	};
+	}
 
 	void minimizeDialogs();
 	void restoreMinimizeDialogs();
 
 	void refreshDarkMode(bool resetStyle = false);
+
+	void refreshInternalPanelIcons();
+
+	void changeReadOnlyUserModeForAllOpenedTabs(const bool ro);
 
 private:
 	Notepad_plus_Window* _pPublicInterface = nullptr;
@@ -317,6 +321,7 @@ private:
 	FindIncrementDlg _incrementFindDlg;
     AboutDlg _aboutDlg;
 	DebugInfoDlg _debugInfoDlg;
+	CmdLineArgsDlg _cmdLineArgsDlg;
 	RunDlg _runDlg;
 	HashFromFilesDlg _md5FromFilesDlg;
 	HashFromTextDlg _md5FromTextDlg;
@@ -370,15 +375,15 @@ private:
 	//For Dynamic selection highlight
 	Sci_CharacterRangeFull _prevSelectedRange;
 
-	//Synchronized Scolling
+	//Synchronized Scrolling
 	struct SyncInfo final
 	{
 		intptr_t _line = 0;
 		intptr_t _column = 0;
-		bool _isSynScollV = false;
-		bool _isSynScollH = false;
+		bool _isSynScrollV = false;
+		bool _isSynScrollH = false;
 
-		bool doSync() const {return (_isSynScollV || _isSynScollH); }
+		bool doSync() const {return (_isSynScrollV || _isSynScrollH); }
 	}
 	_syncInfo;
 
@@ -424,7 +429,7 @@ private:
 	UCHAR _mainWindowStatus = 0; //For 2 views and user dialog if docked
 	int _activeView = MAIN_VIEW;
 
-	int _multiSelectFlag = 0; // For sktpping current Multi-select comment 
+	int _multiSelectFlag = 0; // For skipping current Multi-select comment 
 
 	//User dialog docking
 	void dockUserDlg();
@@ -435,7 +440,7 @@ private:
 	bool viewVisible(int whichOne);
 	void hideView(int whichOne);
 	void hideCurrentView();
-	bool bothActive() { return (_mainWindowStatus & WindowBothActive) == WindowBothActive; };
+	bool bothActive() { return (_mainWindowStatus & WindowBothActive) == WindowBothActive; }
 	bool reloadLang();
 	bool loadStyles();
 
@@ -460,7 +465,7 @@ private:
 	void docGotoAnotherEditView(FileTransferMode mode);	//TransferMode
 	void docOpenInNewInstance(FileTransferMode mode, int x = 0, int y = 0);
 
-	void loadBufferIntoView(BufferID id, int whichOne, bool dontClose = false);		//Doesnt _activate_ the buffer
+	void loadBufferIntoView(BufferID id, int whichOne, bool dontClose = false);		//Doesn't _activate_ the buffer
 	bool removeBufferFromView(BufferID id, int whichOne);	//Activates alternative of possible, or creates clean document if not clean already
 
 	bool activateBuffer(BufferID id, int whichOne, bool forceApplyHilite = false);			//activate buffer in that view if found
@@ -587,9 +592,8 @@ private:
 	bool findInCurrentFile(bool isEntireDoc);
 
 	void getMatchedFileNames(const wchar_t *dir, size_t level, const std::vector<std::wstring> & patterns, std::vector<std::wstring> & fileNames, bool isRecursive, bool isInHiddenDir);
-	void doSynScorll(HWND hW);
+	void doSynScroll(HWND hW);
 	void setWorkingDir(const wchar_t *dir);
-	bool str2Cliboard(const std::wstring & str2cpy);
 
 	bool getIntegralDockingData(tTbData & dockData, int & iCont, bool & isVisible);
 	int getLangFromMenuName(const wchar_t * langName);
@@ -647,7 +651,7 @@ private:
 	static DWORD WINAPI monitorFileOnChange(void * params);
 	struct MonitorInfo final {
 		MonitorInfo(Buffer *buf, HWND nppHandle) :
-			_buffer(buf), _nppHandle(nppHandle) {};
+			_buffer(buf), _nppHandle(nppHandle) {}
 		Buffer *_buffer = nullptr;
 		HWND _nppHandle = nullptr;
 	};
@@ -658,10 +662,14 @@ private:
 
 	HBITMAP generateSolidColourMenuItemIcon(COLORREF colour);
 
-	void clearChangesHistory();
+	void clearChangesHistory(int iView);
 	void changedHistoryGoTo(int idGoTo);
 
 	HMENU createMenuFromMenu(HMENU hSourceMenu, const std::vector<int>& commandIds);
 	BOOL notifyTBShowMenu(LPNMTOOLBARW lpnmtb, const char* menuPosId);
 	BOOL notifyTBShowMenu(LPNMTOOLBARW lpnmtb, const char* menuPosId, const std::vector<int>& cmdIDs);
+
+	int getIcoID(DockingDlgInterface* panel);
+	void loadPanelIcon(HINSTANCE hInst, DockingDlgInterface* panel, HICON* phIcon);
+	void refreshPanelIcon(HINSTANCE hInst, DockingDlgInterface* panel);
 };

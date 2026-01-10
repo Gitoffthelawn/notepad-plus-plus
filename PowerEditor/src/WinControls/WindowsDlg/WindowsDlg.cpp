@@ -38,9 +38,13 @@ using namespace std;
 #define WD_CLMNPATH					"ColumnPath"
 #define WD_CLMNTYPE					"ColumnType"
 #define WD_CLMNSIZE					"ColumnSize"
+#define WD_CLMNDT                   "ColumnDateTime"
 #define WD_NBDOCSTOTAL				"NbDocsTotal"
 #define WD_MENUCOPYNAME				"MenuCopyName"
 #define WD_MENUCOPYPATH				"MenuCopyPath"
+
+// WM_CHAR replacement
+#define WM_CHAR_REPLACEMENT			(WM_USER + WM_CHAR)
 
 static const wchar_t *readonlyString = L" [Read Only]";
 const UINT WDN_NOTIFY = RegisterWindowMessage(L"WDN_NOTIFY");
@@ -148,9 +152,17 @@ struct BufferEquivalent
 		return compare(i1, i2);
 	}
 
+	static inline unsigned long long to_u64(const FILETIME& ft)
+	{
+		ULARGE_INTEGER u;
+		u.LowPart = ft.dwLowDateTime;
+		u.HighPart = ft.dwHighDateTime;
+		return u.QuadPart; // 100-ns ticks since 1601 UTC
+	}
+
 	bool compare(int i1, int i2) const
 	{
-		if (_iColumn >= 0 && _iColumn <= 3)
+		if (_iColumn >= 0 && _iColumn <= 4)
 		{
 			BufferID bid1 = _pTab->getBufferByIndex(i1);
 			BufferID bid2 = _pTab->getBufferByIndex(i2);
@@ -203,6 +215,14 @@ struct BufferEquivalent
 				if (t1 != t2) // default to filepath sorting when equivalent
 					return (t1 < t2);
 			}
+			else if (_iColumn == 4)
+			{
+				const auto v1 = to_u64(b1->getLastModifiedTimestamp());
+				const auto v2 = to_u64(b2->getLastModifiedTimestamp());
+
+				if (v1 != v2)
+					return (v1 < v2); //_isAscending ? (v1 < v2) : (v1 > v2);
+			}
 
 			// _iColumn == 1
 			const wchar_t *s1 = b1->getFullPathName();
@@ -240,6 +260,8 @@ BEGIN_WINDOW_MAP(WindowsDlgMap)
 END_WINDOW_MAP()
 
 RECT WindowsDlg::_lastKnownLocation;
+HHOOK WindowsDlg::_hMsgHook = nullptr;
+HWND WindowsDlg::_hThisDlg = nullptr;
 
 WindowsDlg::WindowsDlg() : MyBaseClass(WindowsDlgMap)
 {
@@ -258,6 +280,26 @@ void WindowsDlg::init(HINSTANCE hInst, HWND parent)
 	_pTab = NULL;
 }
 
+LRESULT CALLBACK WindowsDlg::getMsgProc(int code, WPARAM wParam, LPARAM lParam) 
+{
+	if (code >= 0 && wParam == PM_REMOVE) 
+	{
+		MSG* pMsg = reinterpret_cast<MSG*>(lParam);
+		if (pMsg->message == WM_CHAR) 
+		{
+			// forward a WM_CHAR replacement message to the dialog
+			::PostMessage(_hThisDlg, WM_CHAR_REPLACEMENT, pMsg->wParam, pMsg->lParam);
+
+			// suppress the original one 
+			// to prevent it from reaching the list view
+			pMsg->message = WM_NULL;
+			return 0;
+		}
+	}
+
+	return CallNextHookEx(_hMsgHook, code, wParam, lParam);
+}
+
 intptr_t CALLBACK WindowsDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
@@ -269,6 +311,10 @@ intptr_t CALLBACK WindowsDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lP
 
 			NppDarkMode::autoSubclassAndThemeChildControls(_hSelf);
 			NppDarkMode::autoSubclassAndThemeWindowNotify(_hSelf);
+
+			// install message hook to intercept WM_CHAR
+			_hThisDlg = _hSelf;
+			initMessageHook();
 
 			return MyBaseClass::run_dlgProc(message, wParam, lParam);
 		}
@@ -360,6 +406,9 @@ intptr_t CALLBACK WindowsDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lP
 
 		case WM_DESTROY:
 		{
+			// uninstall WM_CHAR message hook
+			removeMessageHook();
+
 			//destroy();
 			return TRUE;
 		}
@@ -397,7 +446,8 @@ intptr_t CALLBACK WindowsDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lP
 							const wchar_t *fullName = buf->getFullPathName();
 							const wchar_t *fileName = buf->getFileName();
 							int len = lstrlen(fullName)-lstrlen(fileName);
-							if (!len) {
+							if (!len) 
+							{
 								len = 1;
 								fullName = L"";
 							}
@@ -406,8 +456,8 @@ intptr_t CALLBACK WindowsDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lP
 						else if (pLvdi->item.iSubItem == 2) // Type
 						{
 							NppParameters& nppParameters = NppParameters::getInstance();
-							Lang *lang = nppParameters.getLangFromID(buf->getLangType());
-							if (NULL != lang)
+							Lang* lang = nppParameters.getLangFromID(buf->getLangType());
+							if (lang)
 							{
 								text = lang->getLangName();
 							}
@@ -417,6 +467,33 @@ intptr_t CALLBACK WindowsDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lP
 							size_t docSize = buf->docLength();
 							string docSizeText = to_string(docSize);
 							text = wstring(docSizeText.begin(), docSizeText.end());
+						}
+						else if (pLvdi->item.iSubItem == 4) // Modified time
+						{
+							FILETIME ft = buf->getLastModifiedTimestamp();
+
+							// handle unsaved or unknown timestamp
+							if (ft.dwLowDateTime == 0 && ft.dwHighDateTime == 0) 
+							{
+								text = L""; // or L"—"
+							}
+							else 
+							{
+								FILETIME localFt{};
+								SYSTEMTIME st{};
+								if (FileTimeToLocalFileTime(&ft, &localFt) && FileTimeToSystemTime(&localFt, &st)) 
+								{
+									wchar_t bufW[20]; // "YYYY-MM-DD HH:MM:SS" = 19 + NUL
+									swprintf(bufW, 20, L"%04u-%02u-%02u %02u:%02u:%02u",
+										st.wYear, st.wMonth, st.wDay,
+										st.wHour, st.wMinute, st.wSecond);
+									text = bufW;
+								}
+								else 
+								{
+									text = L"";
+								}
+							}
 						}
 
 						if (static_cast<int>(text.length()) < pLvdi->item.cchTextMax)
@@ -482,6 +559,102 @@ intptr_t CALLBACK WindowsDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lP
 				}
 			}
 			break;
+		}
+
+		case WM_CHAR_REPLACEMENT:
+		{
+			if (!_hList)
+				return TRUE;
+
+			wchar_t ch = static_cast<wchar_t>(wParam);
+			int itemCount = ListView_GetItemCount(_hList);
+
+			// backup current state
+			vector<int> stateMap;
+			stateMap.reserve(itemCount);
+			for (int index = 0; index < itemCount; index++)
+				stateMap.push_back(ListView_GetItemState(_hList, index, LVIS_SELECTED | LVIS_FOCUSED));
+
+			// temporarily clear existing selection
+			ListView_SetItemState(_hList, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+
+			LVITEM lvItem {};
+			wchar_t buffer[MAX_PATH] = L"\0";
+
+			int firstMatchFound = -1;
+			int lastMatchSel = -1;
+			int targetedIndex = -1;
+
+			// find items whose first character matches the typed character
+			for (int index = 0; index < itemCount; ++index)
+			{
+				lvItem.iItem = index;
+				lvItem.mask = LVIF_TEXT;
+				lvItem.pszText = buffer;
+				lvItem.cchTextMax = MAX_PATH;
+
+				if (ListView_GetItem(_hList, &lvItem))
+				{
+					if (towlower(buffer[0]) == towlower(ch))
+					{
+						// mark the first matching item index found
+						if (firstMatchFound == -1)
+							firstMatchFound = index;
+
+						// if the item is currenly selected, skip and find the next item
+						if (stateMap.at(index) & LVIS_SELECTED) 
+						{
+							lastMatchSel = index;
+							continue;
+						}
+
+						// stop at the next matching item 
+						// after the last selected matching one
+						if (lastMatchSel != -1) 
+						{
+							targetedIndex = index;
+							break;
+						}
+					}
+				}
+			}
+
+			// targeted item is found
+			if (targetedIndex != -1)
+			{
+				ListView_SetItemState(_hList, targetedIndex, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+				ListView_EnsureVisible(_hList, targetedIndex, FALSE);
+			}
+
+			// otherwise, that means either of these cases: 
+			//  1. no matching item is currently selected
+			//	2. the last matching item is currently selected
+			//	3. all matching items are currently selected
+			//	4. no matching item is found
+			else
+			{
+				// case 1 -> 3: select the first matching item
+				if (firstMatchFound != -1)
+				{
+					ListView_SetItemState(_hList, firstMatchFound, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+					ListView_EnsureVisible(_hList, firstMatchFound, FALSE);
+				}
+
+				// case 4:
+				else
+				{
+					// restore previous state
+					for (int index = 0; index < itemCount; index++)
+						ListView_SetItemState(_hList, index, stateMap.at(index), LVIS_SELECTED | LVIS_FOCUSED);
+
+					// make a beep sound
+					const NppGUI& nppGUI = NppParameters::getInstance().getNppGUI();
+					if (!nppGUI._muteSounds)
+						MessageBeep(0xFFFFFFFF);
+				}
+			}
+
+			return TRUE;
 		}
 
 		case WM_CONTEXTMENU:
@@ -555,13 +728,9 @@ void WindowsDlg::updateButtonState()
 int WindowsDlg::doDialog()
 {
 	const auto dpiContext = DPIManagerV2::setThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED);
+	const auto result = static_cast<int>(StaticDialog::myCreateDialogBoxIndirectParam(IDD_WINDOWS, false));
+	DPIManagerV2::setThreadDpiAwarenessContext(dpiContext);
 
-	int result = static_cast<int>(DialogBoxParam(_hInst, MAKEINTRESOURCE(IDD_WINDOWS), _hParent, dlgProc, reinterpret_cast<LPARAM>(this)));
-
-	if (dpiContext != NULL)
-	{
-		DPIManagerV2::setThreadDpiAwarenessContext(dpiContext);
-	}
 	return result;
 }
 
@@ -623,6 +792,11 @@ BOOL WindowsDlg::onInitDialog()
 	lvColumn.pszText = const_cast<wchar_t *>(columnText.c_str());
 	lvColumn.cx = 100;
 	SendMessage(_hList, LVM_INSERTCOLUMN, 3, LPARAM(&lvColumn));
+
+	columnText = L"⇵ " + pNativeSpeaker->getAttrNameStr(L"Modified time", WD_ROOTNODE, WD_CLMNDT);
+	lvColumn.pszText = const_cast<wchar_t*>(columnText.c_str());
+	lvColumn.cx = 120;
+	SendMessage(_hList, LVM_INSERTCOLUMN, 4, LPARAM(&lvColumn));
 
 	fitColumnsToSize();
 
@@ -717,6 +891,25 @@ void WindowsDlg::updateColumnNames()
 	lvColumn.pszText = const_cast<wchar_t *>(columnText.c_str());
 	lvColumn.cx = static_cast<int>(SendMessage(_hList, LVM_GETCOLUMNWIDTH, 3, 0));
 	SendMessage(_hList, LVM_SETCOLUMN, 3, LPARAM(&lvColumn));
+
+	// Modified time
+	lvColumn.fmt = LVCFMT_LEFT;
+	columnText = pNativeSpeaker->getAttrNameStr(L"Modified time", WD_ROOTNODE, WD_CLMNDT);
+	if (_currentColumn != 4) 
+	{
+		columnText = L"⇵ " + columnText;
+	}
+	else if (_reverseSort) 
+	{
+		columnText = L"△ " + columnText;
+	}
+	else 
+	{
+		columnText = L"▽ " + columnText;
+	}
+	lvColumn.pszText = const_cast<wchar_t*>(columnText.c_str());
+	lvColumn.cx = static_cast<int>(SendMessage(_hList, LVM_GETCOLUMNWIDTH, 4, 0));
+	SendMessage(_hList, LVM_SETCOLUMN, 4, LPARAM(&lvColumn));
 }
 
 void WindowsDlg::onSize(UINT nType, int cx, int cy)
@@ -733,7 +926,8 @@ void WindowsDlg::onGetMinMaxInfo(MINMAXINFO* lpMMI)
 LRESULT WindowsDlg::onWinMgr(WPARAM wp, LPARAM lp)
 {
 	NMWINMGR &nmw = *reinterpret_cast<NMWINMGR *>(lp);
-	if (nmw.code==NMWINMGR::GET_SIZEINFO) {
+	if (nmw.code==NMWINMGR::GET_SIZEINFO) 
+	{
 		switch(wp)
 		{
 		case IDOK:
@@ -795,6 +989,7 @@ void WindowsDlg::fitColumnsToSize()
 		len -= static_cast<int>(SendMessage(_hList, LVM_GETCOLUMNWIDTH, 0, 0));
 		len -= static_cast<int>(SendMessage(_hList, LVM_GETCOLUMNWIDTH, 2, 0));
 		len -= static_cast<int>(SendMessage(_hList, LVM_GETCOLUMNWIDTH, 3, 0));
+		len -= static_cast<int>(SendMessage(_hList, LVM_GETCOLUMNWIDTH, 4, 0));
 		len -= GetSystemMetrics(SM_CXVSCROLL);
 		len -= 1;
 		SendMessage(_hList, LVM_SETCOLUMNWIDTH, 1, len);
@@ -1036,6 +1231,16 @@ void WindowsDlg::sortFileSizeDSC()
 	sort(3, true);
 }
 
+void WindowsDlg::sortDateTimeASC()
+{
+	sort(4, false);
+}
+
+void WindowsDlg::sortDateTimeDSC()
+{
+	sort(4, true);
+}
+
 void WindowsDlg::refreshMap()
 {
 	size_t count = (_pTab != NULL) ? _pTab->nbItem() : 0;
@@ -1170,6 +1375,11 @@ void WindowsMenu::initPopupMenu(HMENU hMenu, DocTabView* pTab)
 
 			wstring strBuffer(BuildMenuFileName(60, static_cast<int32_t>(pos), buf->getFileName(), !isDropListMenu));
 			std::vector<wchar_t> vBuffer(strBuffer.begin(), strBuffer.end());
+			if (buf->isDirty()) 
+			{
+				// add a '*' after the modified tab name (like Visual Studio)
+				vBuffer.push_back('*');
+			}
 			vBuffer.push_back('\0');
 			mii.dwTypeData = (&vBuffer[0]);
 

@@ -14,22 +14,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-#include <time.h>
+#include "Notepad_plus.h"
+
 #include <shlwapi.h>
 #include <wininet.h>
-#include "Notepad_plus.h"
+
+#include <ctime>
+
+#include "NppXml.h"
 #include "Notepad_plus_Window.h"
 #include "CustomFileDialog.h"
 #include "Printer.h"
 #include "FileNameStringSplitter.h"
 #include "lesDlgs.h"
 #include "Utf8_16.h"
-#include "regExtDlg.h"
 #include "RunDlg.h"
-#include "ShortcutMapper.h"
 #include "preferenceDlg.h"
 #include "TaskListDlg.h"
-#include "xmlMatchedTagsHighlighter.h"
 #include "EncodingMapper.h"
 #include "ansiCharPanel.h"
 #include "clipboardHistoryPanel.h"
@@ -40,6 +41,7 @@
 #include "fileBrowser.h"
 #include "Common.h"
 #include "NppDarkMode.h"
+#include "dpiManagerV2.h"
 
 using namespace std;
 
@@ -137,8 +139,8 @@ Notepad_plus::Notepad_plus()
 	ZeroMemory(&_prevSelectedRange, sizeof(_prevSelectedRange));
 
 	NppParameters& nppParam = NppParameters::getInstance();
-	TiXmlDocumentA *nativeLangDocRootA = nppParam.getNativeLangA();
-    _nativeLangSpeaker.init(nativeLangDocRootA);
+	NppXml::Document nativeLangDocRoot = nppParam.getNativeLang();
+	_nativeLangSpeaker.init(nativeLangDocRoot);
 
 	LocalizationSwitcher & localizationSwitcher = nppParam.getLocalizationSwitcher();
     const char *fn = _nativeLangSpeaker.getFileName();
@@ -346,7 +348,7 @@ LRESULT Notepad_plus::init(HWND hwnd)
 	_mainEditView.execute(SCI_SETZOOM, svp._zoom);
 	_subEditView.execute(SCI_SETZOOM, svp._zoom2);
 
-	::SendMessage(hwnd, NPPM_INTERNAL_SETMULTISELCTION, 0, 0);
+	::SendMessage(hwnd, NPPM_INTERNAL_SETMULTISELECTION, 0, 0);
 
 	// Make backspace or delete work with multiple selections
 	_mainEditView.execute(SCI_SETADDITIONALSELECTIONTYPING, true);
@@ -387,8 +389,8 @@ LRESULT Notepad_plus::init(HWND hwnd)
 	_subEditView.execute(SCI_STYLESETCHECKMONOSPACED, STYLE_DEFAULT, true);
 
 	// Restore also the possible previous selection for each undo/redo op (memory cost min 150B for each op)
-	_mainEditView.execute(SCI_SETUNDOSELECTIONHISTORY, SC_UNDO_SELECTION_HISTORY_ENABLED);
-	_subEditView.execute(SCI_SETUNDOSELECTIONHISTORY, SC_UNDO_SELECTION_HISTORY_ENABLED);
+	_mainEditView.execute(SCI_SETUNDOSELECTIONHISTORY, SC_UNDO_SELECTION_HISTORY_ENABLED | SC_UNDO_SELECTION_HISTORY_SCROLL);
+	_subEditView.execute(SCI_SETUNDOSELECTIONHISTORY, SC_UNDO_SELECTION_HISTORY_ENABLED | SC_UNDO_SELECTION_HISTORY_SCROLL);
 
 	const auto& hf = _mainDocTab.getFont(nppGUI._tabStatus & TAB_REDUCE);
 	if (hf)
@@ -433,7 +435,7 @@ LRESULT Notepad_plus::init(HWND hwnd)
 	//--Splitter Section--//
 	bool isVertical = (nppGUI._splitterPos == POS_VERTICAL);
 
-	int splitterSizeDyn = nppParam._dpiManager.scaleX(splitterSize);
+	const int splitterSizeDyn = DPIManagerV2::scale(splitterSize, dpi);
 	_subSplitter.init(_pPublicInterface->getHinst(), hwnd);
 	_subSplitter.create(&_mainDocTab, &_subDocTab, splitterSizeDyn, SplitterMode::DYNAMIC, 50, isVertical);
 
@@ -638,8 +640,16 @@ LRESULT Notepad_plus::init(HWND hwnd)
 	::DrawMenuBar(hwnd);
 
 
-	//Windows menu
+	// Windows menu
 	_windowsMenu.init(_mainMenuHandle);
+
+	// if user set system codepage to UTF8, ANSI encoding capacity should be disable once for all
+	if (NppParameters::getInstance().isCurrentSystemCodepageUTF8())
+	{
+		enableCommand(IDM_FORMAT_ANSI, false, MENU);
+		enableCommand(IDM_FORMAT_CONV2_ANSI, false, MENU);
+	}
+
 
 	// Update Scintilla context menu strings (translated)
 	vector<MenuItemUnit> & tmp = nppParam.getContextMenuItems();
@@ -723,6 +733,7 @@ LRESULT Notepad_plus::init(HWND hwnd)
 	_colEditorDlg.init(_pPublicInterface->getHinst(), hwnd, &_pEditView);
 	_aboutDlg.init(_pPublicInterface->getHinst(), hwnd);
 	_debugInfoDlg.init(_pPublicInterface->getHinst(), hwnd, _isAdministrator, _pluginsManager.getLoadedPluginNames());
+	_cmdLineArgsDlg.init(_pPublicInterface->getHinst(), hwnd);
 	_runDlg.init(_pPublicInterface->getHinst(), hwnd);
 	_runMacroDlg.init(_pPublicInterface->getHinst(), hwnd);
 	_documentPeeker.init(_pPublicInterface->getHinst(), hwnd);
@@ -810,7 +821,7 @@ LRESULT Notepad_plus::init(HWND hwnd)
 		for (size_t i = 0, len = dmd._pluginDockInfo.size(); i < len; ++i)
 		{
 			PluginDlgDockingInfo& pdi = dmd._pluginDockInfo[i];
-			const bool isInternalFunc = pdi._name == NPP_INTERNAL_FUCTION_STR;
+			const bool isInternalFunc = pdi._name == NPP_INTERNAL_FUNCTION_STR;
 
 			bool showPanel = true;
 			if (nppGUI._isCmdlineNosessionActivated)
@@ -896,7 +907,7 @@ bool Notepad_plus::saveGUIParams()
 	nppGUI._toolbarShow = _rebarTop.getIDVisible(REBAR_BAR_TOOLBAR);
 	nppGUI._tbIconInfo._tbIconSet = _toolBar.getState();
 
-	nppGUI._splitterPos = _subSplitter.isVertical()?POS_VERTICAL:POS_HORIZOTAL;
+	nppGUI._splitterPos = _subSplitter.isVertical() ? POS_VERTICAL : POS_HORIZONTAL;
 	UserDefineDialog *udd = _pEditView->getUserDefineDlg();
 	bool b = udd->isDocked();
 	nppGUI._userDefineDlgStatus = (b?UDD_DOCKED:0) | (udd->isVisible()?UDD_SHOW:0);
@@ -2509,7 +2520,7 @@ int Notepad_plus::doDeleteOrNot(const wchar_t *fn)
 
 void Notepad_plus::enableMenu(int cmdID, bool doEnable) const
 {
-	int flag = doEnable?MF_ENABLED | MF_BYCOMMAND:MF_DISABLED | MF_GRAYED | MF_BYCOMMAND;
+	int flag = doEnable ? MF_ENABLED | MF_BYCOMMAND : MF_GRAYED | MF_DISABLED | MF_BYCOMMAND;
 	::EnableMenuItem(_mainMenuHandle, cmdID, flag);
 }
 
@@ -2587,13 +2598,18 @@ void Notepad_plus::checkDocState()
 	enableCommand(IDM_VIEW_LOAD_IN_NEW_INSTANCE, !(isCurrentDirty || isCurrentUntitled), MENU);
 
 	bool isSysReadOnly = curBuf->getFileReadOnly();
-	enableCommand(IDM_EDIT_CLEARREADONLY, isSysReadOnly, MENU);
 
-	bool doEnable = !(curBuf->isMonitoringOn() || isSysReadOnly);
-	enableCommand(IDM_EDIT_SETREADONLY, doEnable, MENU);
+	bool doEnable = !(curBuf->isMonitoringOn() || isSysReadOnly ||
+		NppParameters::getInstance().getNppGUI()._isFullReadOnlySavingForbidden);
+	enableCommand(IDM_EDIT_TOGGLEREADONLY, doEnable, MENU);
+	bool doEnableForAll = !(curBuf->isMonitoringOn() || 
+		NppParameters::getInstance().getNppGUI()._isFullReadOnlySavingForbidden);
+	enableCommand(IDM_EDIT_SETREADONLYFORALLDOCS, doEnableForAll, MENU);
+	enableCommand(IDM_EDIT_CLEARREADONLYFORALLDOCS, doEnableForAll, MENU);
 
 	bool isUserReadOnly = curBuf->getUserReadOnly();
-	::CheckMenuItem(_mainMenuHandle, IDM_EDIT_SETREADONLY, MF_BYCOMMAND | (isUserReadOnly ? MF_CHECKED : MF_UNCHECKED));
+	::CheckMenuItem(_mainMenuHandle, IDM_EDIT_TOGGLEREADONLY, MF_BYCOMMAND | (isUserReadOnly ? MF_CHECKED : MF_UNCHECKED));
+	
 
 	enableCommand(IDM_FILE_DELETE, isFileExisting, MENU);
 	enableCommand(IDM_FILE_OPEN_CMD, isFileExisting, MENU);
@@ -2621,8 +2637,17 @@ void Notepad_plus::checkDocState()
 
 	enableCommand(IDM_FILE_SAVEAS, !curBuf->isInaccessible(), MENU);
 	enableCommand(IDM_FILE_RENAME, !curBuf->isInaccessible(), MENU);
-	if (curBuf->isInaccessible())
-		enableCommand(IDM_EDIT_CLEARREADONLY, false, MENU);
+	if (curBuf->isInaccessible() || isCurrentUntitled)
+	{
+		::CheckMenuItem(_mainMenuHandle, IDM_EDIT_TOGGLESYSTEMREADONLY, MF_BYCOMMAND | MF_UNCHECKED);
+		enableCommand(IDM_EDIT_TOGGLESYSTEMREADONLY, false, MENU);
+	}
+	else
+	{
+		enableCommand(IDM_EDIT_TOGGLESYSTEMREADONLY, true, MENU);
+		::CheckMenuItem(_mainMenuHandle, IDM_EDIT_TOGGLESYSTEMREADONLY, MF_BYCOMMAND | (isSysReadOnly ? MF_CHECKED : MF_UNCHECKED));
+	}
+
 	enableCommand(IDM_VIEW_GOTO_ANOTHER_VIEW, !curBuf->isInaccessible(), MENU);
 	enableCommand(IDM_VIEW_CLONE_TO_ANOTHER_VIEW, !curBuf->isInaccessible(), MENU);
 	enableCommand(IDM_VIEW_GOTO_NEW_INSTANCE, !curBuf->isInaccessible() && !curBuf->isDirty() && !curBuf->isUntitled(), MENU);
@@ -2650,8 +2675,8 @@ void Notepad_plus::checkSyncState()
 	bool canDoSync = viewVisible(MAIN_VIEW) && viewVisible(SUB_VIEW);
 	if (!canDoSync)
 	{
-		_syncInfo._isSynScollV = false;
-		_syncInfo._isSynScollH = false;
+		_syncInfo._isSynScrollV = false;
+		_syncInfo._isSynScrollH = false;
 		checkMenuItem(IDM_VIEW_SYNSCROLLV, false);
 		checkMenuItem(IDM_VIEW_SYNSCROLLH, false);
 		_toolBar.setCheck(IDM_VIEW_SYNSCROLLV, false);
@@ -2703,12 +2728,15 @@ void Notepad_plus::setupColorSampleBitmapsOnMainMenuItems()
 	// Adds tab colour icons
 	for (int i = 0; i < 5; ++i)
 	{
-		COLORREF colour = nppParam.getIndividualTabColor(i, NppDarkMode::isDarkMenuEnabled(), true);
+		COLORREF colour = nppParam.getIndividualTabColor(i, NppDarkMode::isEnabled(), true);
 		HBITMAP hBitmap = generateSolidColourMenuItemIcon(colour);
 		SetMenuItemBitmaps(_mainMenuHandle, IDM_VIEW_TAB_COLOUR_1 + i, MF_BYCOMMAND, hBitmap, hBitmap);
 	}
 }
 
+// doCheck searches for the menu item matching the provided id across the main menu and all of its submenus,
+// once the target id is found, it ensures that item is checked, and all other menu items at that same level are automatically unchecked.
+// If id is -1, then all the menu items are unchecked.
 bool doCheck(HMENU mainHandle, int id)
 {
 	MENUITEMINFO mii{};
@@ -2720,7 +2748,7 @@ bool doCheck(HMENU mainHandle, int id)
 	for (int i = 0; i < count; i++)
 	{
 		::GetMenuItemInfo(mainHandle, i, MF_BYPOSITION, &mii);
-		if (mii.fType == MFT_RADIOCHECK || mii.fType == MFT_STRING)
+		if (!(mii.fState & MFS_GRAYED) && (mii.fType == MFT_RADIOCHECK || mii.fType == MFT_STRING))
 		{
 			bool checked = mii.hSubMenu ? doCheck(mii.hSubMenu, id) : (mii.wID == (unsigned int)id);
 			if (checked)
@@ -2815,7 +2843,7 @@ void Notepad_plus::copyMarkedLines()
 			globalStr = currentStr;
 		}
 	}
-	str2Cliboard(globalStr);
+	str2Clipboard(globalStr, _pPublicInterface->getHSelf());
 }
 
 std::mutex mark_mutex;
@@ -2839,7 +2867,7 @@ void Notepad_plus::cutMarkedLines()
 		}
 	}
 	_pEditView->execute(SCI_ENDUNDOACTION);
-	str2Cliboard(globalStr);
+	str2Clipboard(globalStr, _pPublicInterface->getHSelf());
 }
 
 void Notepad_plus::deleteMarkedLines(bool isMarked)
@@ -3057,7 +3085,7 @@ void Notepad_plus::setUniModeText()
 				uniModeTextString = L"UTF-16 Big Endian"; break;
 			case uni16LE_NoBOM:
 				uniModeTextString = L"UTF-16 Little Endian"; break;
-			case uniCookie:
+			case uniUTF8_NoBOM:
 				uniModeTextString = L"UTF-8"; break;
 			default :
 				uniModeTextString = L"ANSI";
@@ -3621,7 +3649,7 @@ void Notepad_plus::maintainIndentation(wchar_t ch)
 	// else nppGui._maintainIndent == autoIndent_advance
 
 	if (type == L_C || type == L_CPP || type == L_JAVA || type == L_CS || type == L_OBJC ||
-		type == L_PHP || type == L_JS || type == L_JAVASCRIPT || type == L_JSP || type == L_CSS || type == L_PERL || 
+		type == L_PHP || type == L_JS_EMBEDDED || type == L_JAVASCRIPT || type == L_JSP || type == L_CSS || type == L_PERL || 
 		type == L_RUST || type == L_POWERSHELL || type == L_JSON || type == L_JSON5 || type == L_TYPESCRIPT || type == L_GOLANG || type == L_SWIFT || 
 		autoIndentMode == ExternalLexerAutoIndentMode::C_Like)
 	{
@@ -3880,6 +3908,9 @@ void Notepad_plus::setLanguage(LangType langType)
 	{
 		(_pEditView->getCurrentBuffer())->setLangType(langType);
 	}
+
+
+	_pEditView->restoreHiddenLines();
 }
 
 LangType Notepad_plus::menuID2LangType(int cmdID)
@@ -4173,7 +4204,7 @@ size_t Notepad_plus::getSelectedCharNumber(UniMode u)
 {
 	size_t result = 0;
 	size_t numSel = _pEditView->execute(SCI_GETSELECTIONS);
-	if (u == uniUTF8 || u == uniCookie)
+	if (u == uniUTF8 || u == uniUTF8_NoBOM)
 	{
 		for (size_t i = 0; i < numSel; ++i)
 		{
@@ -4236,7 +4267,7 @@ static inline size_t countUtf8Characters(const unsigned char *buf, size_t pos, s
 
 size_t Notepad_plus::getCurrentDocCharCount(UniMode u)
 {
-	if (u != uniUTF8 && u != uniCookie)
+	if (u != uniUTF8 && u != uniUTF8_NoBOM)
 	{
 		size_t numLines = _pEditView->execute(SCI_GETLINECOUNT);
 		auto result = _pEditView->execute(SCI_GETLENGTH);
@@ -4281,7 +4312,7 @@ size_t Notepad_plus::getCurrentDocCharCount(UniMode u)
 
 bool Notepad_plus::isFormatUnicode(UniMode u)
 {
-	return (u != uni8Bit && u != uni7Bit && u != uniUTF8 && u != uniCookie);
+	return (u != uni8Bit && u != uni7Bit && u != uniUTF8 && u != uniUTF8_NoBOM);
 }
 
 int Notepad_plus::getBOMSize(UniMode u)
@@ -4431,7 +4462,7 @@ void Notepad_plus::dropFiles(HDROP hdrop)
 {
 	if (hdrop)
 	{
-		// Determinate in which view the file(s) is (are) dropped
+		// Determine in which view the file(s) is (are) dropped
 		POINT p{};
 		::DragQueryPoint(hdrop, &p);
 		HWND hWin = ::ChildWindowFromPointEx(_pPublicInterface->getHSelf(), p, CWP_SKIPINVISIBLE);
@@ -4806,7 +4837,8 @@ void Notepad_plus::dockUserDlg()
             pWindow = &_subSplitter;
         else
             pWindow = _pDocTab;
-		int splitterSizeDyn = NppParameters::getInstance()._dpiManager.scaleX(splitterSize);
+
+		const int splitterSizeDyn = DPIManagerV2::scale(splitterSize, _pPublicInterface->getHSelf());
         _pMainSplitter->create(pWindow, ScintillaEditView::getUserDefineDlg(), splitterSizeDyn, SplitterMode::RIGHT_FIX, 45);
     }
 
@@ -5142,11 +5174,11 @@ void Notepad_plus::checkUnicodeMenuItems() const
 	int id = -1;
 	switch (um)
 	{
-		case uniUTF8   : id = IDM_FORMAT_UTF_8; break;
-		case uni16BE   : id = IDM_FORMAT_UTF_16BE; break;
-		case uni16LE   : id = IDM_FORMAT_UTF_16LE; break;
-		case uniCookie : id = IDM_FORMAT_AS_UTF_8; break;
-		case uni8Bit   : id = IDM_FORMAT_ANSI; break;
+		case uniUTF8       : id = IDM_FORMAT_UTF_8; break;
+		case uni16BE       : id = IDM_FORMAT_UTF_16BE; break;
+		case uni16LE       : id = IDM_FORMAT_UTF_16LE; break;
+		case uniUTF8_NoBOM : id = IDM_FORMAT_AS_UTF_8; break;
+		case uni8Bit       : id = IDM_FORMAT_ANSI; break;
 
 		case uni7Bit:
 		case uni16BE_NoBOM:
@@ -5156,24 +5188,21 @@ void Notepad_plus::checkUnicodeMenuItems() const
 			break;
 	}
 
-	if (encoding == -1)
+	HMENU _formatMenuHandle = ::GetSubMenu(_mainMenuHandle, MENUINDEX_FORMAT);
+
+	if (encoding == -1) // encoding is not used, so use uniMode to check menu item
 	{
-		// Uncheck all in the sub encoding menu
-        HMENU _formatMenuHandle = ::GetSubMenu(_mainMenuHandle, MENUINDEX_FORMAT);
+		// Uncheck all in the main & sub encoding menu
         doCheck(_formatMenuHandle, -1);
 
-		if (id == -1) //um == uni16BE_NoBOM || um == uni16LE_NoBOM
+		if (id != -1) 
 		{
-			// Uncheck all in the main encoding menu
-			::CheckMenuRadioItem(_mainMenuHandle, IDM_FORMAT_ANSI, IDM_FORMAT_AS_UTF_8, IDM_FORMAT_ANSI, MF_BYCOMMAND);
-			::CheckMenuItem(_mainMenuHandle, IDM_FORMAT_ANSI, MF_UNCHECKED | MF_BYCOMMAND);
+			DWORD state = GetMenuState(_formatMenuHandle, IDM_FORMAT_ANSI, MF_BYCOMMAND);
+			::CheckMenuRadioItem(_mainMenuHandle, (state & MFS_GRAYED) ? IDM_FORMAT_UTF_8 : IDM_FORMAT_ANSI, IDM_FORMAT_AS_UTF_8, id, MF_BYCOMMAND);
 		}
-		else
-		{
-			::CheckMenuRadioItem(_mainMenuHandle, IDM_FORMAT_ANSI, IDM_FORMAT_AS_UTF_8, id, MF_BYCOMMAND);
-		}
+		// else if (id == -1) => um == uni16BE_NoBOM || um == uni16LE_NoBOM, let all items unchecked.
 	}
-	else
+	else // encoding is used
 	{
 		const EncodingMapper& em = EncodingMapper::getInstance();
 		int cmdID = em.getIndexFromEncoding(encoding);
@@ -5184,12 +5213,7 @@ void Notepad_plus::checkUnicodeMenuItems() const
 		}
 		cmdID += IDM_FORMAT_ENCODE;
 
-		// Uncheck all in the main encoding menu
-		::CheckMenuRadioItem(_mainMenuHandle, IDM_FORMAT_ANSI, IDM_FORMAT_AS_UTF_8, IDM_FORMAT_ANSI, MF_BYCOMMAND);
-		::CheckMenuItem(_mainMenuHandle, IDM_FORMAT_ANSI, MF_UNCHECKED | MF_BYCOMMAND);
-
-		// Check the encoding item
-        HMENU _formatMenuHandle = ::GetSubMenu(_mainMenuHandle, MENUINDEX_FORMAT);
+		// Check the encoding item        
         doCheck(_formatMenuHandle, cmdID);
 	}
 }
@@ -5931,7 +5955,7 @@ void Notepad_plus::fullScreenToggle()
 			}
 		}
 
-		//Set fullscreen window, highest non-top z-order, show the window and redraw it (refreshing the windowmanager cache aswell)
+		//Set fullscreen window, highest non-top z-order, show the window and redraw it (refreshing the windowmanager cache as well)
 		::ShowWindow(_pPublicInterface->getHSelf(), SW_SHOW);
 		::SetWindowPos(_pPublicInterface->getHSelf(), HWND_TOP, fullscreenArea.left, fullscreenArea.top, fullscreenArea.right, fullscreenArea.bottom, SWP_NOZORDER|SWP_DRAWFRAME|SWP_FRAMECHANGED);
 		::SetForegroundWindow(_pPublicInterface->getHSelf());
@@ -5963,7 +5987,7 @@ void Notepad_plus::fullScreenToggle()
 		//Setup GUI
 		if (!_beforeSpecialView._isPostIt)
 		{
-			//only change the GUI if postit isnt active
+			//only change the GUI if postit isn't active
 			if (_beforeSpecialView._isMenuShown)
 				::SendMessage(_pPublicInterface->getHSelf(), NPPM_HIDEMENU, 0, FALSE);
 
@@ -5976,7 +6000,7 @@ void Notepad_plus::fullScreenToggle()
 		if (!_beforeSpecialView._isPostIt)
 		{
 			::SetWindowLongPtr( _pPublicInterface->getHSelf(), GWL_STYLE, _beforeSpecialView._preStyle);
-			//Redraw the window and refresh windowmanager cache, dont do anything else, sizing is done later on
+			//Redraw the window and refresh windowmanager cache, don't do anything else, sizing is done later on
 			::SetWindowPos(_pPublicInterface->getHSelf(), HWND_TOP,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_DRAWFRAME|SWP_FRAMECHANGED);
 			::ShowWindow(_pPublicInterface->getHSelf(), SW_SHOW);
 		}
@@ -6065,7 +6089,7 @@ void Notepad_plus::postItToggle()
 				//something went wrong, use default settings
 				_beforeSpecialView._preStyle = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
 			}
-			//Redraw the window and refresh windowmanager cache, dont do anything else, sizing is done later on
+			//Redraw the window and refresh windowmanager cache, don't do anything else, sizing is done later on
 			::SetWindowPos(_pPublicInterface->getHSelf(), HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_DRAWFRAME|SWP_FRAMECHANGED);
 			::ShowWindow(_pPublicInterface->getHSelf(), SW_SHOW);
 		}
@@ -6117,7 +6141,7 @@ void Notepad_plus::postItToggle()
 			::ShowWindow(_pPublicInterface->getHSelf(), SW_HIDE);
 			::SetWindowLongPtr(_pPublicInterface->getHSelf(), GWL_STYLE, _beforeSpecialView._preStyle);
 
-			//Redraw the window and refresh windowmanager cache, dont do anything else, sizing is done later on
+			//Redraw the window and refresh windowmanager cache, don't do anything else, sizing is done later on
 			::SetWindowPos(_pPublicInterface->getHSelf(), HWND_NOTOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_DRAWFRAME|SWP_FRAMECHANGED);
 			::ShowWindow(_pPublicInterface->getHSelf(), SW_SHOW);
 		}
@@ -6212,7 +6236,7 @@ void Notepad_plus::distractionFreeToggle()
 	_pEditView->execute(SCI_SETMARGINRIGHT, 0, paddingRight);
 }
 
-void Notepad_plus::doSynScorll(HWND whichView)
+void Notepad_plus::doSynScroll(HWND whichView)
 {
 	intptr_t column = 0;
 	intptr_t line = 0;
@@ -6228,14 +6252,14 @@ void Notepad_plus::doSynScorll(HWND whichView)
 
 	if (whichView == _mainEditView.getHSelf())
 	{
-		if (_syncInfo._isSynScollV)
+		if (_syncInfo._isSynScrollV)
 		{
 			// Compute for Line
 			mainCurrentLine = _mainEditView.execute(SCI_GETFIRSTVISIBLELINE);
 			subCurrentLine = _subEditView.execute(SCI_GETFIRSTVISIBLELINE);
 			line = mainCurrentLine - _syncInfo._line - subCurrentLine;
 		}
-		if (_syncInfo._isSynScollH)
+		if (_syncInfo._isSynScrollH)
 		{
 			// Compute for Column
 			mxoffset = _mainEditView.execute(SCI_GETXOFFSET);
@@ -6251,14 +6275,14 @@ void Notepad_plus::doSynScorll(HWND whichView)
 	}
 	else if (whichView == _subEditView.getHSelf())
 	{
-		if (_syncInfo._isSynScollV)
+		if (_syncInfo._isSynScrollV)
 		{
 			// Compute for Line
 			mainCurrentLine = _mainEditView.execute(SCI_GETFIRSTVISIBLELINE);
 			subCurrentLine = _subEditView.execute(SCI_GETFIRSTVISIBLELINE);
 			line = subCurrentLine + _syncInfo._line - mainCurrentLine;
 		}
-		if (_syncInfo._isSynScollH)
+		if (_syncInfo._isSynScrollH)
 		{
 			// Compute for Column
 			mxoffset = _mainEditView.execute(SCI_GETXOFFSET);
@@ -6286,7 +6310,7 @@ bool Notepad_plus::getIntegralDockingData(tTbData & dockData, int & iCont, bool 
 	{
 		const PluginDlgDockingInfo & pddi = dockingData._pluginDockInfo[i];
 
-		if (!wcsicmp(pddi._name.c_str(), dockData.pszModuleName) && (pddi._internalID == dockData.dlgID))
+		if (!_wcsicmp(pddi._name.c_str(), dockData.pszModuleName) && (pddi._internalID == dockData.dlgID))
 		{
 			iCont				= pddi._currContainer;
 			isVisible			= pddi._isVisible;
@@ -6306,7 +6330,7 @@ bool Notepad_plus::getIntegralDockingData(tTbData & dockData, int & iCont, bool 
 }
 
 
-void Notepad_plus::getCurrentOpenedFiles(Session & session, bool includUntitledDoc)
+void Notepad_plus::getCurrentOpenedFiles(Session & session, bool includeUntitledDoc)
 {
 	_mainEditView.saveCurrentPos();	//save position so itll be correct in the session
 	_subEditView.saveCurrentPos();	//both views
@@ -6334,7 +6358,7 @@ void Notepad_plus::getCurrentOpenedFiles(Session & session, bool includUntitledD
 			if (buf->isUntitled() && buf->docLength() == 0)
 				continue;
 
-			if (!includUntitledDoc)
+			if (!includeUntitledDoc)
 				if (!doesFileExist(buf->getFullPathName()))
 					continue;
 
@@ -6357,21 +6381,19 @@ void Notepad_plus::getCurrentOpenedFiles(Session & session, bool includUntitledD
 			}
 
 			const wchar_t* langName = languageName.c_str();
-			sessionFileInfo sfi(buf->getFullPathName(), langName, buf->getEncoding(), buf->getUserReadOnly(), buf->isPinned(), buf->getPosition(editView), buf->getBackupFileName().c_str(), buf->getLastModifiedTimestamp(), buf->getMapPosition());
+			sessionFileInfo sfi(buf->getFullPathName(), langName, buf->getEncoding(), buf->getUserReadOnly(), buf->isPinned(), buf->isUntitledTabRenamed(), buf->getPosition(editView), buf->getBackupFileName().c_str(), buf->getLastModifiedFileTimestamp(), buf->getMapPosition());
 
 			sfi._isMonitoring = buf->isMonitoringOn();
 			sfi._individualTabColour = docTab[k]->getIndividualTabColourId(static_cast<int>(i));
 			sfi._isRTL = buf->isRTL();
 
 			_invisibleEditView.execute(SCI_SETDOCPOINTER, 0, buf->getDocument());
-			size_t maxLine = static_cast<size_t>(_invisibleEditView.execute(SCI_GETLINECOUNT));
 
-			for (size_t j = 0 ; j < maxLine ; ++j)
+			auto nextMarkedLine = _invisibleEditView.execute(SCI_MARKERNEXT, 0, (1 << MARK_BOOKMARK));
+			while (nextMarkedLine != -1)
 			{
-				if ((_invisibleEditView.execute(SCI_MARKERGET, j) & (1 << MARK_BOOKMARK)) != 0)
-				{
-					sfi._marks.push_back(j);
-				}
+				sfi._marks.push_back(nextMarkedLine);
+				nextMarkedLine = _invisibleEditView.execute(SCI_MARKERNEXT, nextMarkedLine + 1, (1 << MARK_BOOKMARK));
 			}
 
 			if (i == activeIndex)
@@ -6386,11 +6408,6 @@ void Notepad_plus::getCurrentOpenedFiles(Session & session, bool includUntitledD
 		}
 	}
 	_invisibleEditView.execute(SCI_SETDOCPOINTER, 0, oldDoc);
-}
-
-bool Notepad_plus::str2Cliboard(const wstring & str2cpy)
-{
-	return str2Clipboard(str2cpy, _pPublicInterface->getHSelf());
 }
 
 //ONLY CALL IN CASE OF EMERGENCY: EXCEPTION
@@ -6579,7 +6596,7 @@ void Notepad_plus::notifyBufferChanged(Buffer * buffer, int mask)
 						// Since the file content has changed but the user doesn't want to reload it, set state to dirty
 						buffer->setDirty(true);
 
-						// buffer in Notepad++ is not syncronized anymore with the file on disk
+						// buffer in Notepad++ is not synchronized anymore with the file on disk
 						buffer->setUnsync(true);
 
 						break;	//abort
@@ -6588,7 +6605,7 @@ void Notepad_plus::notifyBufferChanged(Buffer * buffer, int mask)
 				// Set _isLoadedDirty false so when the document clean state is reached the icon will be set to blue
 				buffer->setLoadedDirty(false);
 
-				// buffer in Notepad++ is syncronized with the file on disk
+				// buffer in Notepad++ is synchronized with the file on disk
 				buffer->setUnsync(false);
 
 				doReload(buffer->getID(), false);
@@ -6609,7 +6626,7 @@ void Notepad_plus::notifyBufferChanged(Buffer * buffer, int mask)
 					_mainEditView.setPositionRestoreNeeded(false);
 					_mainEditView.execute(SCI_DOCUMENTEND);
 				}
-				// but also test sub-view, because the buffer could be clonned
+				// but also test sub-view, because the buffer could be cloned
 				if (buffer == _subEditView.getCurrentBuffer())
 				{
 					_subEditView.setPositionRestoreNeeded(false);
@@ -6646,7 +6663,7 @@ void Notepad_plus::notifyBufferChanged(Buffer * buffer, int mask)
 					}
 					else
 					{
-						// buffer in Notepad++ is not syncronized anymore with the file on disk
+						// buffer in Notepad++ is not synchronized anymore with the file on disk
 						buffer->setUnsync(true);
 					}
 				}
@@ -6753,7 +6770,7 @@ void Notepad_plus::notifyBufferActivated(BufferID bufid, int view)
 	}
 
 	if (view != currentView())
-		return;	//dont care if another view did something
+		return;	//don't care if another view did something
 
 
 	checkDocState();
@@ -7143,13 +7160,13 @@ bool Notepad_plus::reloadLang()
 		return false;
 	}
 
-	TiXmlDocumentA *nativeLangDocRootA = nppParam.getNativeLangA();
-	if (!nativeLangDocRootA)
+	NppXml::Document nativeLangDocRoot = nppParam.getNativeLang();
+	if (nativeLangDocRoot == nullptr)
 	{
 		return false;
 	}
 
-    _nativeLangSpeaker.init(nativeLangDocRootA, true);
+    _nativeLangSpeaker.init(nativeLangDocRoot, true);
 
     nppParam.reloadContextMenuFromXmlTree(_mainMenuHandle, _pluginsManager.getMenuHandle());
 
@@ -7191,7 +7208,7 @@ bool Notepad_plus::reloadLang()
 	}
 	if (_preference.isCreated())
 	{
-		_nativeLangSpeaker.changePrefereceDlgLang(_preference);
+		_nativeLangSpeaker.changePreferenceDlgLang(_preference);
 	}
 
 	if (_configStyleDlg.isCreated())
@@ -7287,22 +7304,15 @@ void Notepad_plus::launchClipboardHistoryPanel()
 		NativeLangSpeaker *pNativeSpeaker = nppParams.getNativeLangSpeaker();
 		bool isRTL = pNativeSpeaker->isRTL();
 		tTbData	data{};
-		_pClipboardHistoryPanel->create(&data, isRTL);
+		_pClipboardHistoryPanel->create(&data, { IDR_CLIPBOARDPANEL_ICO, IDR_CLIPBOARDPANEL_ICO_DM, IDR_CLIPBOARDPANEL_ICO2 }, isRTL);
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>(_pClipboardHistoryPanel->getHSelf()));
 		// define the default docking behaviour
 		data.uMask = DWS_DF_CONT_RIGHT | DWS_ICONTAB | DWS_USEOWNDARKMODE;
 
-		int icoID = IDR_CLIPBOARDPANEL_ICO2;
-		if (nppParams.getNppGUI()._tbIconInfo._tbIconSet == TB_STANDARD)
-			icoID = IDR_CLIPBOARDPANEL_ICO;
-		else if (NppDarkMode::isEnabled())
-			icoID = IDR_CLIPBOARDPANEL_ICO_DM;
+		loadPanelIcon(_pPublicInterface->getHinst(), _pClipboardHistoryPanel, &data.hIconTab);
 
-		const int iconSize = DPIManagerV2::scale(g_dockingContTabIconSize, _pClipboardHistoryPanel->getHSelf());
-		DPIManagerV2::loadIcon(_pPublicInterface->getHinst(), MAKEINTRESOURCE(icoID), iconSize, iconSize, &data.hIconTab, LR_LOADMAP3DCOLORS | LR_LOADTRANSPARENT);
-
-		data.pszModuleName = NPP_INTERNAL_FUCTION_STR;
+		data.pszModuleName = NPP_INTERNAL_FUNCTION_STR;
 
 		// the dlgDlg should be the index of funcItem where the current function pointer is
 		// in this case is DOCKABLE_DEMO_INDEX
@@ -7351,22 +7361,15 @@ void Notepad_plus::launchDocumentListPanel(bool changeFromBtnCmd)
 		NativeLangSpeaker *pNativeSpeaker = nppParams.getNativeLangSpeaker();
 		bool isRTL = pNativeSpeaker->isRTL();
 		tTbData	data{};
-		_pDocumentListPanel->create(&data, isRTL);
+		_pDocumentListPanel->create(&data, { IDR_DOCLIST_ICO, IDR_DOCLIST_ICO_DM, IDR_DOCLIST_ICO2 }, isRTL);
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>(_pDocumentListPanel->getHSelf()));
 		// define the default docking behaviour
 		data.uMask = DWS_DF_CONT_LEFT | DWS_ICONTAB | DWS_USEOWNDARKMODE;
 
-		int icoID = IDR_DOCLIST_ICO2;
-		if (nppParams.getNppGUI()._tbIconInfo._tbIconSet == TB_STANDARD)
-			icoID = IDR_DOCLIST_ICO;
-		else if (NppDarkMode::isEnabled())
-			icoID = IDR_DOCLIST_ICO_DM;
+		loadPanelIcon(_pPublicInterface->getHinst(), _pDocumentListPanel, &data.hIconTab);
 
-		const int iconSize = DPIManagerV2::scale(g_dockingContTabIconSize, _pDocumentListPanel->getHSelf());
-		DPIManagerV2::loadIcon(_pPublicInterface->getHinst(), MAKEINTRESOURCE(icoID), iconSize, iconSize, &data.hIconTab, LR_LOADMAP3DCOLORS | LR_LOADTRANSPARENT);
-
-		data.pszModuleName = NPP_INTERNAL_FUCTION_STR;
+		data.pszModuleName = NPP_INTERNAL_FUNCTION_STR;
 
 		// the dlgDlg should be the index of funcItem where the current function pointer is
 		// in this case is DOCKABLE_DEMO_INDEX
@@ -7439,22 +7442,15 @@ void Notepad_plus::launchAnsiCharPanel()
 		NativeLangSpeaker *pNativeSpeaker = nppParams.getNativeLangSpeaker();
 		bool isRTL = pNativeSpeaker->isRTL();
 		tTbData	data{};
-		_pAnsiCharPanel->create(&data, isRTL);
+		_pAnsiCharPanel->create(&data, { IDR_ASCIIPANEL_ICO, IDR_ASCIIPANEL_ICO_DM, IDR_ASCIIPANEL_ICO2 }, isRTL);
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>(_pAnsiCharPanel->getHSelf()));
 		// define the default docking behaviour
 		data.uMask = DWS_DF_CONT_RIGHT | DWS_ICONTAB | DWS_USEOWNDARKMODE;
 
-		int icoID = IDR_ASCIIPANEL_ICO2;
-		if (nppParams.getNppGUI()._tbIconInfo._tbIconSet == TB_STANDARD)
-			icoID = IDR_ASCIIPANEL_ICO;
-		else if (NppDarkMode::isEnabled())
-			icoID = IDR_ASCIIPANEL_ICO_DM;
+		loadPanelIcon(_pPublicInterface->getHinst(), _pAnsiCharPanel, &data.hIconTab);
 
-		const int iconSize = DPIManagerV2::scale(g_dockingContTabIconSize, _pAnsiCharPanel->getHSelf());
-		DPIManagerV2::loadIcon(_pPublicInterface->getHinst(), MAKEINTRESOURCE(icoID), iconSize, iconSize, &data.hIconTab, LR_LOADMAP3DCOLORS | LR_LOADTRANSPARENT);
-
-		data.pszModuleName = NPP_INTERNAL_FUCTION_STR;
+		data.pszModuleName = NPP_INTERNAL_FUNCTION_STR;
 
 		// the dlgDlg should be the index of funcItem where the current function pointer is
 		// in this case is DOCKABLE_DEMO_INDEX
@@ -7488,7 +7484,7 @@ void Notepad_plus::launchFileBrowser(const vector<wstring> & folders, const wstr
 		_pFileBrowser->init(_pPublicInterface->getHinst(), _pPublicInterface->getHSelf());
 
 		tTbData	data{};
-		_pFileBrowser->create(&data, _nativeLangSpeaker.isRTL());
+		_pFileBrowser->create(&data, { IDR_FILEBROWSER_ICO, IDR_FILEBROWSER_ICO_DM, IDR_FILEBROWSER_ICO2 }, _nativeLangSpeaker.isRTL());
 		data.pszName = L"ST";
 
 		NppParameters& nppParams = NppParameters::getInstance();
@@ -7497,16 +7493,9 @@ void Notepad_plus::launchFileBrowser(const vector<wstring> & folders, const wstr
 		// define the default docking behaviour
 		data.uMask = DWS_DF_CONT_LEFT | DWS_ICONTAB | DWS_USEOWNDARKMODE;
 		
-		int icoID = IDR_FILEBROWSER_ICO2;
-		if (nppParams.getNppGUI()._tbIconInfo._tbIconSet == TB_STANDARD)
-			icoID = IDR_FILEBROWSER_ICO;
-		else if (NppDarkMode::isEnabled())
-			icoID = IDR_FILEBROWSER_ICO_DM;
+		loadPanelIcon(_pPublicInterface->getHinst(), _pFileBrowser, &data.hIconTab);
 
-		const int iconSize = DPIManagerV2::scale(g_dockingContTabIconSize, _pFileBrowser->getHSelf());
-		DPIManagerV2::loadIcon(_pPublicInterface->getHinst(), MAKEINTRESOURCE(icoID), iconSize, iconSize, &data.hIconTab, LR_LOADMAP3DCOLORS | LR_LOADTRANSPARENT);
-
-		data.pszModuleName = NPP_INTERNAL_FUCTION_STR;
+		data.pszModuleName = NPP_INTERNAL_FUNCTION_STR;
 
 		// the dlgDlg should be the index of funcItem where the current function pointer is
 		// in this case is DOCKABLE_DEMO_INDEX
@@ -7600,23 +7589,16 @@ void Notepad_plus::launchProjectPanel(int cmdID, ProjectPanel ** pProjPanel, int
 		NativeLangSpeaker *pNativeSpeaker = nppParam.getNativeLangSpeaker();
 		bool isRTL = pNativeSpeaker->isRTL();
 		tTbData	data{};
-		(*pProjPanel)->create(&data, isRTL);
+		(*pProjPanel)->create(&data, { IDR_PROJECTPANEL_ICO, IDR_PROJECTPANEL_ICO_DM, IDR_PROJECTPANEL_ICO2 }, isRTL);
 		data.pszName = L"ST";
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>((*pProjPanel)->getHSelf()));
 		// define the default docking behaviour
 		data.uMask = DWS_DF_CONT_LEFT | DWS_ICONTAB | DWS_USEOWNDARKMODE;
 
-		int icoID = IDR_PROJECTPANEL_ICO2;
-		if (nppParam.getNppGUI()._tbIconInfo._tbIconSet == TB_STANDARD)
-			icoID = IDR_PROJECTPANEL_ICO;
-		else if (NppDarkMode::isEnabled())
-			icoID = IDR_PROJECTPANEL_ICO_DM;
+		loadPanelIcon(_pPublicInterface->getHinst(), (*pProjPanel), &data.hIconTab);
 
-		const int iconSize = DPIManagerV2::scale(g_dockingContTabIconSize, (*pProjPanel)->getHSelf());
-		DPIManagerV2::loadIcon(_pPublicInterface->getHinst(), MAKEINTRESOURCE(icoID), iconSize, iconSize, &data.hIconTab, LR_LOADMAP3DCOLORS | LR_LOADTRANSPARENT);
-
-		data.pszModuleName = NPP_INTERNAL_FUCTION_STR;
+		data.pszModuleName = NPP_INTERNAL_FUNCTION_STR;
 
 		// the dlgDlg should be the index of funcItem where the current function pointer is
 		// in this case is DOCKABLE_DEMO_INDEX
@@ -7667,22 +7649,15 @@ void Notepad_plus::launchDocMap()
 		_pDocMap->init(_pPublicInterface->getHinst(), _pPublicInterface->getHSelf(), &_pEditView);
 
 		tTbData	data{};
-		_pDocMap->create(&data);
+		_pDocMap->create(&data, { IDR_DOCMAP_ICO, IDR_DOCMAP_ICO_DM, IDR_DOCMAP_ICO2 });
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>(_pDocMap->getHSelf()));
 		// define the default docking behaviour
 		data.uMask = DWS_DF_CONT_RIGHT | DWS_ICONTAB | DWS_USEOWNDARKMODE;
 
-		int icoID = IDR_DOCMAP_ICO2;
-		if (nppParam.getNppGUI()._tbIconInfo._tbIconSet == TB_STANDARD)
-			icoID = IDR_DOCMAP_ICO;
-		else if (NppDarkMode::isEnabled())
-			icoID = IDR_DOCMAP_ICO_DM;
+		loadPanelIcon(_pPublicInterface->getHinst(), _pDocMap, &data.hIconTab);
 
-		const int iconSize = DPIManagerV2::scale(g_dockingContTabIconSize, _pDocMap->getHSelf());
-		DPIManagerV2::loadIcon(_pPublicInterface->getHinst(), MAKEINTRESOURCE(icoID), iconSize, iconSize, &data.hIconTab, LR_LOADMAP3DCOLORS | LR_LOADTRANSPARENT);
-
-		data.pszModuleName = NPP_INTERNAL_FUCTION_STR;
+		data.pszModuleName = NPP_INTERNAL_FUNCTION_STR;
 
 		// the dlgDlg should be the index of funcItem where the current function pointer is
 		// in this case is DOCKABLE_DEMO_INDEX
@@ -7716,7 +7691,7 @@ void Notepad_plus::launchFunctionList()
 		_pFuncList->init(_pPublicInterface->getHinst(), _pPublicInterface->getHSelf(), &_pEditView);
 
 		tTbData	data{};
-		_pFuncList->create(&data);
+		_pFuncList->create(&data, { IDR_FUNC_LIST_ICO, IDR_FUNC_LIST_ICO_DM, IDR_FUNC_LIST_ICO2 });
 
 		::SendMessage(_pPublicInterface->getHSelf(), NPPM_MODELESSDIALOG, MODELESSDIALOGREMOVE, reinterpret_cast<LPARAM>(_pFuncList->getHSelf()));
 		// define the default docking behaviour
@@ -7724,16 +7699,9 @@ void Notepad_plus::launchFunctionList()
 		
 		NppParameters& nppParam = NppParameters::getInstance();
 
-		int icoID = IDR_FUNC_LIST_ICO2;
-		if (nppParam.getNppGUI()._tbIconInfo._tbIconSet == TB_STANDARD)
-			icoID = IDR_FUNC_LIST_ICO;
-		else if (NppDarkMode::isEnabled())
-			icoID = IDR_FUNC_LIST_ICO_DM;
+		loadPanelIcon(_pPublicInterface->getHinst(), _pFuncList, &data.hIconTab);
 
-		const int iconSize = DPIManagerV2::scale(g_dockingContTabIconSize, _pFuncList->getHSelf());
-		DPIManagerV2::loadIcon(_pPublicInterface->getHinst(), MAKEINTRESOURCE(icoID), iconSize, iconSize, &data.hIconTab, LR_LOADMAP3DCOLORS | LR_LOADTRANSPARENT);
-
-		data.pszModuleName = NPP_INTERNAL_FUCTION_STR;
+		data.pszModuleName = NPP_INTERNAL_FUNCTION_STR;
 
 		// the dlgDlg should be the index of funcItem where the current function pointer is
 		// in this case is DOCKABLE_DEMO_INDEX
@@ -7741,7 +7709,7 @@ void Notepad_plus::launchFunctionList()
 		data.dlgID = IDM_VIEW_FUNC_LIST;
 
 		NativeLangSpeaker *pNativeSpeaker = nppParam.getNativeLangSpeaker();
-		wstring title_temp = pNativeSpeaker->getAttrNameStr(FL_PANELTITLE, FL_FUCTIONLISTROOTNODE, "PanelTitle");
+		wstring title_temp = pNativeSpeaker->getAttrNameStr(FL_PANELTITLE, FL_FUNCTIONLISTROOTNODE, "PanelTitle");
 
 		static wchar_t title[32];
 		if (title_temp.length() < 32)
@@ -8383,11 +8351,11 @@ int Notepad_plus::getQuoteIndexFrom(const wchar_t* quoter) const
 	if (!quoter)
 		return -1;
 
-	if (wcsicmp(quoter, L"Get them all!!!") == 0)
+	if (_wcsicmp(quoter, L"Get them all!!!") == 0)
 		return -2;
 
 	int nbQuote = sizeof(quotes) / sizeof(QuoteParams);
-	if (wcsicmp(quoter, L"random") == 0)
+	if (_wcsicmp(quoter, L"random") == 0)
 	{
 		srand(static_cast<UINT>(time(NULL)));
 		return getRandomNumber(nbQuote);
@@ -8395,7 +8363,7 @@ int Notepad_plus::getQuoteIndexFrom(const wchar_t* quoter) const
 
 	for (int i = 0; i < nbQuote; ++i)
 	{
-		if (wcsicmp(quotes[i]._quoter, quoter) == 0)
+		if (_wcsicmp(quotes[i]._quoter, quoter) == 0)
 			return i;
 	}
 	return -1;
@@ -8603,14 +8571,16 @@ void Notepad_plus::refreshDarkMode(bool resetStyle)
 			NppDarkMode::setDarkTitleBar(_pPublicInterface->getHSelf());
 			::SetWindowPos(_pPublicInterface->getHSelf(), nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 
-			for (auto& docCont : _dockingManager.getContainerInfo())
+			for (const auto& docCont : _dockingManager.getContainerInfo())
 			{
+				NppDarkMode::autoThemeChildControls(docCont->getTabWnd()); // for updown child
+
 				auto hwndDocCont = docCont->getCaptionWnd();
 				NppDarkMode::setDarkTitleBar(hwndDocCont);
 				::SetWindowPos(hwndDocCont, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 			}
 
-			for (auto& hwndDlg : _hModelessDlgs)
+			for (const auto& hwndDlg : _hModelessDlgs)
 			{
 				NppDarkMode::setDarkTitleBar(hwndDlg);
 				::SendMessage(hwndDlg, NPPM_INTERNAL_REFRESHDARKMODE, 0, 0);
@@ -8638,6 +8608,81 @@ void Notepad_plus::refreshDarkMode(bool resetStyle)
 
 		::RedrawWindow(_findInFinderDlg.getHSelf(), nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN);
 		::RedrawWindow(_pPublicInterface->getHSelf(), nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN);
+	}
+}
+
+int Notepad_plus::getIcoID(DockingDlgInterface* panel)
+{
+	if (_toolBar.getState() == TB_STANDARD)
+		return panel->getIconIDs().at(0);
+	if (NppDarkMode::isEnabled())
+		return panel->getIconIDs().at(1);
+	return panel->getIconIDs().at(2);
+}
+
+void Notepad_plus::loadPanelIcon(HINSTANCE hInst, DockingDlgInterface* panel, HICON* phIcon)
+{
+	const int icoID = getIcoID(panel);
+	const int iconSize = DPIManagerV2::scale(g_dockingContTabIconSize, panel->getHSelf());
+	DPIManagerV2::loadIcon(hInst, MAKEINTRESOURCE(icoID), iconSize, iconSize, phIcon, LR_LOADMAP3DCOLORS | LR_LOADTRANSPARENT);
+}
+
+void Notepad_plus::refreshPanelIcon(HINSTANCE hInst, DockingDlgInterface* panel)
+{
+	HWND hWnd = panel->getHSelf();
+	for (const auto& docCont : _dockingManager.getContainerInfo())
+	{
+		auto data = docCont->findToolbarByWnd(hWnd);
+		if (data != nullptr)
+		{
+			if (data->hIconTab != nullptr)
+			{
+				::DestroyIcon(data->hIconTab);
+				data->hIconTab = nullptr;
+			}
+
+			loadPanelIcon(hInst, panel, &data->hIconTab);
+			break;
+		}
+	}
+}
+
+void Notepad_plus::refreshInternalPanelIcons()
+{
+	std::array<DockingDlgInterface*, 9> internalPanels = { _pProjectPanel_1, _pProjectPanel_2, _pProjectPanel_3,
+		_pFuncList, _pDocMap, _pFileBrowser,
+		_pAnsiCharPanel, _pDocumentListPanel, _pClipboardHistoryPanel };
+
+	for (const auto& panel : internalPanels)
+	{
+		if (panel != nullptr)
+		{
+			refreshPanelIcon(_pPublicInterface->getHinst(), panel);
+		}
+	}
+
+	const auto mainFinder = _findReplaceDlg.getMainFinder();
+	if (mainFinder != nullptr)
+	{
+		refreshPanelIcon(_pPublicInterface->getHinst(), mainFinder);
+
+		const auto& finders = _findReplaceDlg.getFindersOfFinder();
+		if (!finders.empty())
+		{
+			for (const auto& finder : finders)
+			{
+				if (finder != nullptr)
+				{
+					refreshPanelIcon(_pPublicInterface->getHinst(), finder);
+				}
+			}
+		}
+	}
+
+	for (const auto& docCont : _dockingManager.getContainerInfo())
+	{
+		auto hTab = docCont->getTabWnd();
+		::RedrawWindow(hTab, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE);
 	}
 }
 
@@ -8989,19 +9034,33 @@ HBITMAP Notepad_plus::generateSolidColourMenuItemIcon(COLORREF colour)
 	return hNewBitmap;
 }
 
-
-void Notepad_plus::clearChangesHistory()
+void Notepad_plus::clearChangesHistory(int iView)
 {
-	Sci_Position pos = (Sci_Position)::SendMessage(_pEditView->getHSelf(), SCI_GETCURRENTPOS, 0, 0);
-	int chFlags = (int)::SendMessage(_pEditView->getHSelf(), SCI_GETCHANGEHISTORY, 0, 0);
+	// use current view by default
+	ScintillaEditView* pViewToChange = _pEditView;
+	ScintillaEditView* pAnotherView = _pNonEditView;
 
-	_pEditView->execute(SCI_EMPTYUNDOBUFFER);
-	_pEditView->execute(SCI_SETCHANGEHISTORY, SC_CHANGE_HISTORY_DISABLED);
-	_pEditView->execute(SCI_SETCHANGEHISTORY, chFlags);
-	_pEditView->execute(SCI_GOTOPOS, pos);
+	if (iView == MAIN_VIEW)
+	{
+		pViewToChange = &_mainEditView;
+		pAnotherView = &_subEditView;
+	}
+	else if (iView == SUB_VIEW)
+	{
+		pViewToChange = &_subEditView;
+		pAnotherView = &_mainEditView;
+	}
+
+	Sci_Position pos = static_cast<Sci_Position>(::SendMessage(pViewToChange->getHSelf(), SCI_GETCURRENTPOS, 0, 0));
+	int chFlags = static_cast<int>(::SendMessage(pViewToChange->getHSelf(), SCI_GETCHANGEHISTORY, 0, 0));
+
+	pViewToChange->execute(SCI_EMPTYUNDOBUFFER);
+	pViewToChange->execute(SCI_SETCHANGEHISTORY, SC_CHANGE_HISTORY_DISABLED);
+	pViewToChange->execute(SCI_SETCHANGEHISTORY, chFlags);
+	pViewToChange->execute(SCI_GOTOPOS, pos);
 
 	checkUndoState();
-	_pNonEditView->redraw(); // Prevent clonned document visual glichy on another view
+	pAnotherView->redraw(); // Prevent cloned document visual glitch on another view
 }
 
 // Based on https://github.com/notepad-plus-plus/notepad-plus-plus/issues/12248#issuecomment-1258561261.
@@ -9132,7 +9191,7 @@ BOOL Notepad_plus::notifyTBShowMenu(LPNMTOOLBARW lpnmtb, const char* menuPosId)
 	::SendMessage(lpnmtb->hdr.hwndFrom, TB_GETRECT, static_cast<WPARAM>(lpnmtb->iItem), reinterpret_cast<LPARAM>(&rcItem));
 	::MapWindowPoints(lpnmtb->hdr.hwndFrom, HWND_DESKTOP, reinterpret_cast<LPPOINT>(&rcItem), 2);
 
-	const MenuPosition& menuPos = getMenuPosition(menuPosId);
+	const MenuPosition& menuPos = MenuPosition::getMenuPosition(menuPosId);
 	HMENU hSubMenuView = ::GetSubMenu(_mainMenuHandle, menuPos._x);
 	if (hSubMenuView != nullptr)
 	{
@@ -9182,4 +9241,26 @@ BOOL Notepad_plus::notifyTBShowMenu(LPNMTOOLBARW lpnmtb, const char* menuPosId, 
 		return TRUE;
 	}
 	return FALSE;
+}
+
+void Notepad_plus::changeReadOnlyUserModeForAllOpenedTabs(const bool ro)
+{
+	if (ro != true && NppParameters::getInstance().getNppGUI()._isFullReadOnlySavingForbidden)
+		return; // safety for FullReadOnlySavingForbidden mode, refuse to cease the R/O state
+
+	// make R/O changes in both views
+	std::vector<DocTabView*> tabViews = { &_mainDocTab, &_subDocTab };
+	for (auto& pTabView : tabViews)
+	{
+		for (size_t i = 0; i < pTabView->nbItem(); ++i)
+		{
+			BufferID id = pTabView->getBufferByIndex(i);
+			if (id != BUFFER_INVALID)
+			{
+				Buffer* buf = MainFileManager.getBufferByID(id);
+				if (buf != nullptr)
+					buf->setUserReadOnly(ro);
+			}
+		}
+	}
 }

@@ -62,7 +62,9 @@ typedef sptr_t (*SciFnDirectStatus)(sptr_t ptr, unsigned int iMessage, uptr_t wP
 #define SCI_SETUNDOCOLLECTION 2012
 #define SCI_SELECTALL 2013
 #define SCI_SETSAVEPOINT 2014
-#define SCI_GETSTYLEDTEXT 2015
+//deprecated by N++ 2GB+ support via new scintilla interfaces from 5.2.3 (see https://www.scintilla.org/ScintillaHistory.html), 
+//please use SCI_GETTEXTRANGEFULL, SCI_FINDTEXTFULL,SCI_GETSTYLEDTEXTFULL and SCI_FORMATRANGEFULL and corresponding defines/structs
+//#define SCI_GETSTYLEDTEXT 2015
 #define SCI_GETSTYLEDTEXTFULL 2778
 #define SCI_CANREDO 2016
 #define SCI_MARKERLINEFROMHANDLE 2017
@@ -476,6 +478,8 @@ typedef sptr_t (*SciFnDirectStatus)(sptr_t ptr, unsigned int iMessage, uptr_t wP
 #define SCI_AUTOCGETMAXHEIGHT 2211
 #define SCI_AUTOCSETSTYLE 2109
 #define SCI_AUTOCGETSTYLE 2120
+#define SCI_AUTOCSETIMAGESCALE 2815
+#define SCI_AUTOCGETIMAGESCALE 2816
 #define SCI_SETINDENT 2122
 #define SCI_GETINDENT 2123
 #define SCI_SETUSETABS 2124
@@ -523,9 +527,13 @@ typedef sptr_t (*SciFnDirectStatus)(sptr_t ptr, unsigned int iMessage, uptr_t wP
 #define SCFIND_REGEXP 0x00200000
 #define SCFIND_POSIX 0x00400000
 #define SCFIND_CXX11REGEX 0x00800000
-#define SCI_FINDTEXT 2150
+//deprecated by N++ 2GB+ support via new scintilla interfaces from 5.2.3 (see https://www.scintilla.org/ScintillaHistory.html), 
+//please use SCI_GETTEXTRANGEFULL, SCI_FINDTEXTFULL,SCI_GETSTYLEDTEXTFULL and SCI_FORMATRANGEFULL and corresponding defines/structs
+//#define SCI_FINDTEXT 2150
 #define SCI_FINDTEXTFULL 2196
-#define SCI_FORMATRANGE 2151
+//deprecated by N++ 2GB+ support via new scintilla interfaces from 5.2.3 (see https://www.scintilla.org/ScintillaHistory.html), 
+//please use SCI_GETTEXTRANGEFULL, SCI_FINDTEXTFULL,SCI_GETSTYLEDTEXTFULL and SCI_FORMATRANGEFULL and corresponding defines/structs
+//#define SCI_FORMATRANGE 2151
 #define SCI_FORMATRANGEFULL 2777
 #define SC_CHANGE_HISTORY_DISABLED 0
 #define SC_CHANGE_HISTORY_ENABLED 1
@@ -535,6 +543,7 @@ typedef sptr_t (*SciFnDirectStatus)(sptr_t ptr, unsigned int iMessage, uptr_t wP
 #define SCI_GETCHANGEHISTORY 2781
 #define SC_UNDO_SELECTION_HISTORY_DISABLED 0
 #define SC_UNDO_SELECTION_HISTORY_ENABLED 1
+#define SC_UNDO_SELECTION_HISTORY_SCROLL 2
 #define SCI_SETUNDOSELECTIONHISTORY 2782
 #define SCI_GETUNDOSELECTIONHISTORY 2783
 #define SCI_SETSELECTIONSERIALIZED 2784
@@ -550,7 +559,9 @@ typedef sptr_t (*SciFnDirectStatus)(sptr_t ptr, unsigned int iMessage, uptr_t wP
 #define SCI_GETMODIFY 2159
 #define SCI_SETSEL 2160
 #define SCI_GETSELTEXT 2161
-#define SCI_GETTEXTRANGE 2162
+//deprecated by N++ 2GB+ support via new scintilla interfaces from 5.2.3 (see https://www.scintilla.org/ScintillaHistory.html), 
+//please use SCI_GETTEXTRANGEFULL, SCI_FINDTEXTFULL,SCI_GETSTYLEDTEXTFULL and SCI_FORMATRANGEFULL and corresponding defines/structs
+//#define SCI_GETTEXTRANGE 2162
 #define SCI_GETTEXTRANGEFULL 2039
 #define SCI_HIDESELECTION 2163
 #define SCI_GETSELECTIONHIDDEN 2088
@@ -559,6 +570,7 @@ typedef sptr_t (*SciFnDirectStatus)(sptr_t ptr, unsigned int iMessage, uptr_t wP
 #define SCI_LINEFROMPOSITION 2166
 #define SCI_POSITIONFROMLINE 2167
 #define SCI_LINESCROLL 2168
+#define SCI_SCROLLVERTICAL 2817
 #define SCI_SCROLLCARET 2169
 #define SCI_SCROLLRANGE 2569
 #define SCI_REPLACESEL 2170
@@ -1344,31 +1356,37 @@ typedef sptr_t (*SciFnDirectStatus)(sptr_t ptr, unsigned int iMessage, uptr_t wP
  * CHARRANGE, TEXTRANGE, FINDTEXTEX, FORMATRANGE, and NMHDR structs.
  * So older code that treats Scintilla as a RichEdit will work. */
 
-struct Sci_CharacterRange {
-	Sci_PositionCR cpMin;
-	Sci_PositionCR cpMax;
-};
+//deprecated by N++ 2GB+ support via new scintilla interfaces from 5.2.3 (see https://www.scintilla.org/ScintillaHistory.html), 
+//please use SCI_GETTEXTRANGEFULL, SCI_FINDTEXTFULL, and SCI_FORMATRANGEFULL and corresponding defines/structs
+//struct Sci_CharacterRange {
+//	Sci_PositionCR cpMin;
+//	Sci_PositionCR cpMax;
+//};
 
 struct Sci_CharacterRangeFull {
 	Sci_Position cpMin;
 	Sci_Position cpMax;
 };
 
-struct Sci_TextRange {
-	struct Sci_CharacterRange chrg;
-	char *lpstrText;
-};
+//deprecated by N++ 2GB+ support via new scintilla interfaces from 5.2.3 (see https://www.scintilla.org/ScintillaHistory.html), 
+//please use SCI_GETTEXTRANGEFULL, SCI_FINDTEXTFULL, and SCI_FORMATRANGEFULL and corresponding defines/structs
+//struct Sci_TextRange {
+//	struct Sci_CharacterRange chrg;
+//	char *lpstrText;
+//};
 
 struct Sci_TextRangeFull {
 	struct Sci_CharacterRangeFull chrg;
 	char *lpstrText;
 };
 
-struct Sci_TextToFind {
-	struct Sci_CharacterRange chrg;
-	const char *lpstrText;
-	struct Sci_CharacterRange chrgText;
-};
+//deprecated by N++ 2GB+ support via new scintilla interfaces from 5.2.3 (see https://www.scintilla.org/ScintillaHistory.html), 
+//please use SCI_GETTEXTRANGEFULL, SCI_FINDTEXTFULL, and SCI_FORMATRANGEFULL and corresponding defines/structs
+//struct Sci_TextToFind {
+//	struct Sci_CharacterRange chrg;
+//	const char *lpstrText;
+//	struct Sci_CharacterRange chrgText;
+//};
 
 struct Sci_TextToFindFull {
 	struct Sci_CharacterRangeFull chrg;
@@ -1388,13 +1406,15 @@ struct Sci_Rectangle {
 /* This structure is used in printing and requires some of the graphics types
  * from Platform.h.  Not needed by most client code. */
 
-struct Sci_RangeToFormat {
-	Sci_SurfaceID hdc;
-	Sci_SurfaceID hdcTarget;
-	struct Sci_Rectangle rc;
-	struct Sci_Rectangle rcPage;
-	struct Sci_CharacterRange chrg;
-};
+//deprecated by N++ 2GB+ support via new scintilla interfaces from 5.2.3 (see https://www.scintilla.org/ScintillaHistory.html), 
+//please use SCI_GETTEXTRANGEFULL, SCI_FINDTEXTFULL, and SCI_FORMATRANGEFULL and corresponding defines/structs
+//struct Sci_RangeToFormat {
+//	Sci_SurfaceID hdc;
+//	Sci_SurfaceID hdcTarget;
+//	struct Sci_Rectangle rc;
+//	struct Sci_Rectangle rcPage;
+//	struct Sci_CharacterRange chrg;
+//};
 
 struct Sci_RangeToFormatFull {
 	Sci_SurfaceID hdc;

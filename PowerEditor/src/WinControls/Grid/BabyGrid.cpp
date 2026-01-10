@@ -97,7 +97,7 @@ struct GridHandleStruct
 	GridHandleStruct() {
 		for (int k = 0; k < MAX_COLS; k++)
 			columnwidths[k] = 50;
-	};
+	}
 
 } BGHS[MAX_GRIDS];
 
@@ -2680,12 +2680,6 @@ LRESULT CALLBACK GridProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		case WM_DESTROY:
 		{
-			if (CountGrids() == 0)
-			{
-				DeleteObject(g_hfontbody);
-				DeleteObject(g_hfontheader);
-				DeleteObject(g_hfonttitle);
-			}
 			SendMessage(BGHS[SelfIndex].hlist1, LB_RESETCONTENT, 0, 0);
 			DestroyWindow(BGHS[SelfIndex].hlist1);
 			BGHS[SelfIndex].gridmenu = 0;
@@ -2713,6 +2707,10 @@ LRESULT CALLBACK GridProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				BGHS[SelfIndex].columnwidths[k] = 50;
 			}
+
+			DeleteObject(g_hfontbody);
+			DeleteObject(g_hfontheader);
+			DeleteObject(g_hfonttitle);
 		}
 		break;
 		case WM_SETFOCUS:

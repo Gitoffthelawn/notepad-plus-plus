@@ -5,7 +5,7 @@ Translation note:
 2. All the comments are for explanation, they are not for translation.
 -->
 <NotepadPlus>
-	<Native-Langue name="English" filename="english.xml" version="8.8">
+	<Native-Langue name="English" filename="english.xml" version="8.9">
 		<Menu>
 			<Main>
 				<!-- Main Menu Entries -->
@@ -41,6 +41,7 @@ Translation note:
 					<Item subMenuId="edit-onSelection" name="&amp;On Selection"/>
 					<Item subMenuId="edit-multiSelectALL" name="Multi-select ALL"/>
 					<Item subMenuId="edit-multiSelectNext" name="Multi-select Next"/>
+					<Item subMenuId="edit-readonlyInNotepad++" name="Read-Only in Notepad++"/>
 					<Item subMenuId="search-changeHistory" name="Change History"/>
 					<Item subMenuId="search-markAll" name="Style &amp;All Occurrences of Token"/>
 					<Item subMenuId="search-markOne" name="Style &amp;One Token"/>
@@ -139,6 +140,8 @@ Translation note:
 					<Item id="42081" name="Sort Lines Lex. Descending Ignoring Case"/>
 					<Item id="42100" name="Sort Lines In Locale Order Ascending"/>
 					<Item id="42101" name="Sort Lines In Locale Order Descending"/>
+					<Item id="42104" name="Sort Lines By Length Ascending"/>
+					<Item id="42105" name="Sort Lines By Length Descending"/>
 					<Item id="42061" name="Sort Lines As Integers Ascending"/>
 					<Item id="42062" name="Sort Lines As Integers Descending"/>
 					<Item id="42063" name="Sort Lines As Decimals (Comma) Ascending"/>
@@ -196,14 +199,16 @@ Translation note:
 					<Item id="42025" name="&amp;Save Currently Recorded Macro..."/>
 					<Item id="42026" name="Text Direction RTL"/>
 					<Item id="42027" name="Text Direction LTR"/>
-					<Item id="42028" name="&amp;Set Read-Only"/>
+					<Item id="42028" name="Read-Only on Current Document"/>
+					<Item id="42102" name="Read-Only for All Documents"/>
+					<Item id="42103" name="Clear Read-Only for All Documents"/>
 					<Item id="42029" name="Copy Current File Path"/>
 					<Item id="42030" name="Copy Current Filename"/>
 					<Item id="42031" name="Copy Current Dir. Path"/>
 					<Item id="42087" name="Copy All Filenames"/>
 					<Item id="42088" name="Copy All File Paths"/>
 					<Item id="42032" name="&amp;Run a Macro Multiple Times..."/>
-					<Item id="42033" name="Clear Read-Only Flag"/>
+					<Item id="42033" name="Read-Only Attribute in Windows"/>
 					<Item id="42035" name="Single Line Comment"/>
 					<Item id="42036" name="Single Line Uncomment"/>
 					<Item id="42055" name="Remove Empty Lines"/>
@@ -223,7 +228,7 @@ Translation note:
 					<Item id="43020" name="Paste to (Replace) Bookmarked Lines"/>
 					<Item id="43021" name="Remove Bookmarked Lines"/>
 					<Item id="43051" name="Remove Non-Bookmarked Lines"/>
-					<Item id="43050" name="Inverse Bookmark"/>
+					<Item id="43050" name="Inverse Bookmarks"/>
 					<Item id="43052" name="Find characters in rang&amp;e..."/>
 					<Item id="43053" name="Select All In-betw&amp;een {} [] or ()"/>
 					<Item id="43009" name="Go to &amp;Matching Brace"/>
@@ -416,6 +421,8 @@ Translation note:
 					<Item id="11007" name="Type Z to A"/>
 					<Item id="11008" name="Content Length Ascending"/>
 					<Item id="11009" name="Content Length Descending"/>
+					<Item id="11010" name="Modified Time Ascending"/>
+					<Item id="11011" name="Modified Time Descending"/>
 				</Commands>
 			</Main>
 			<TabBar>
@@ -438,8 +445,8 @@ Translation note:
 				<Item CMDID="41016" name="Move to Recycle Bin"/>
 				<Item CMDID="41014" name="Reload"/>
 				<Item CMDID="41010" name="Print..."/>
-				<Item CMDID="42028" name="Read-Only"/>
-				<Item CMDID="42033" name="Clear Read-Only Flag"/>
+				<Item CMDID="42028" name="Read-Only in Notepad++"/>
+				<Item CMDID="42033" name="Read-Only Attribute in Windows"/>
 				<Item CMDID="2" name="Copy to Clipboard"/>
 				<Item CMDID="42029" name="Copy Full File Path"/>
 				<Item CMDID="42030" name="Copy Filename"/>
@@ -994,6 +1001,9 @@ Translation note:
 					<Item id="6120" name="Vertical"/>
 					<Item id="6121" name="Exit on close the last tab"/>
 					<Item id="6128" name="Alternate icons"/>
+					<Item id="6125" name="Behavior"/>
+					<Item id="6126" name="Look &amp;&amp; feel"/>
+					<Item id="6136" name="Max. tab label length:"/>
 				</Tabbar>
 
 				<Scintillas title="Editing 1">
@@ -1106,6 +1116,7 @@ Translation note:
 					<Item id="6419" name="New Document"/>
 					<Item id="6420" name="Apply to opened ANSI files"/>
 					<Item id="6432" name="Always open a new document in addition at startup"/>
+					<Item id="6433" name="Use the first line of document as untitled tab name"/>
 				</NewDoc>
 
 				<DefaultDir title="Default Directory">
@@ -1211,6 +1222,7 @@ Translation note:
 					<Item id="6909" name="Select Word Under Caret when Nothing Selected"/>
 					<Item id="6910" name="Minimum Size for Auto-Checking &quot;In selection&quot;:"/>
 					<Item id="6913" name="Fill Find in Files Directory Field Based On Active Document"/>
+					<Item id="6916" name=": Max Characters to Auto-Fill Find Field from Selection"/>
 				</Searching>
 
 				<RecentFilesHistory title="Recent Files History">
@@ -1349,13 +1361,18 @@ Translation note:
 						<Element name="DirectWrite (draw to GDI DC)"/>
 						<Element name="DirectWrite (DirectX 11)"/>
 					</ComboBox>
+					<ComboBox id="6364">
+						<Element name="Disable"/>
+						<Element name="Enable on Notepad++ startup"/>
+						<Element name="Enable on Notepad++ exit"/>
+					</ComboBox>
 					<Item id="6308" name="system tray"/>
 					<Item id="6363" name="rendering mode"/>
+					<Item id="6365" name="Auto-updater:"/>
 					<Item id="6312" name="File Status Auto-Detection"/>
 					<Item id="6313" name="Update silently"/>
 					<Item id="6325" name="Scroll to the last line after update"/>
 					<Item id="6322" name="Session file ext.:"/>
-					<Item id="6323" name="Enable Notepad++ auto-updater"/>
 					<Item id="6324" name="Document Switcher (Ctrl+TAB)"/>
 					<Item id="6331" name="Show only filename in title bar"/>
 					<Item id="6334" name="Autodetect character encoding"/>
@@ -1445,11 +1462,11 @@ You can re-activate this dialog in Preferences later."/>
 			<ContextMenuXmlEditWarning title="Editing contextMenu" message="Editing contextMenu.xml allows you to modify your Notepad++ popup context menu.
 You have to restart your Notepad++ to take effect after modifying contextMenu.xml."/>
 			<SaveCurrentModifWarning title="Save Current Modification" message="You should save the current modification.
-All the saved modifications can not be undone.
+All the saved modifications cannot be undone.
 
 Continue?"/><!-- HowToReproduce: when you openned file is modified but unsaved yet, and you are changing file encoding. -->
 			<LoseUndoAbilityWarning title="Lose Undo Ability Warning" message="You should save the current modification.
-All the saved modifications can not be undone.
+All the saved modifications cannot be undone.
 
 Continue?"/><!-- HowToReproduce: when you openned file is modified and saved, then you are changing file encoding. -->
 			<CannotMoveDoc title="Move to new Notepad++ Instance" message="Document is modified, save it then try again."/><!-- HowToReproduce: From your Notepad++ drag & drop a clean (not dirty) file to outside of Notepad++, another instance of Notepad++ will be created. Then from your first Notepad++ drag & drop an unsaved file to the new instance. -->
@@ -1514,12 +1531,12 @@ Do you want to go to Notepad++ page to download the latest version?"/><!-- HowTo
 Do you want to open it?"/>
 			<CreateNewFileOrNot title="Create new file" message="&quot;$STR_REPLACE$&quot; doesn't exist. Create it?"/>
 			<CreateNewFileError title="Create new file" message="Cannot create the file &quot;$STR_REPLACE$&quot;."/><!-- HowToReproduce: this message prevents from system failure. It's hard to reproduce. -->
-			<OpenFileError title="ERROR" message="Can not open file &quot;$STR_REPLACE$&quot;."/>
+			<OpenFileError title="ERROR" message="Cannot open file &quot;$STR_REPLACE$&quot;."/>
 			<OpenFileNoFolderError title="Cannot open file" message="&quot;$STR_REPLACE1$&quot; cannot be opened:
 Folder &quot;$STR_REPLACE2$&quot; doesn't exist."/>
 			<FileBackupFailed title="File Backup Failed" message="The previous version of the file could not be saved into the backup directory at &quot;$STR_REPLACE$&quot;.
 
-Do you want to save the current file anyways?"/><!-- HowToReproduce: this message prevents from system failure. It's hard to reproduce. -->
+Do you want to save the current file anyway?"/><!-- HowToReproduce: this message prevents from system failure. It's hard to reproduce. -->
 			<LoadStylersFailed title="Load stylers.xml failed" message="Load &quot;$STR_REPLACE$&quot; failed!"/>
 			<LoadLangsFailed title="Configurator" message="Load langs.xml failed!
 Do you want to recover your langs.xml?"/><!-- HowToReproduce: Close Notepad++. Use another editor to remove all content of "langs.xml" (0 length) then save it. Open Notepad++. -->
@@ -1571,6 +1588,8 @@ Please test those commands and, if needed, re-edit them.
 Alternatively, you can downgrade to Notepad++ v8.5.2 and restore your previous data.
 Notepad++ will backup your old &quot;shortcuts.xml&quot; and save it as &quot;shortcuts.xml.v8.5.2.backup&quot;.
 Renaming &quot;shortcuts.xml.v8.5.2.backup&quot; -&gt; &quot;shortcuts.xml&quot;, your commands should be restored and work properly."/><!-- HowToReproduce: Close Notepad++, remove shortcuts.xml.v8.5.2.backup & v852ShortcutsCompatibilityWarning.xml if present, relaunch Notepad++, delete or modify a shortcuts via Shortcut Mapper, close Notepad++, then the message will show up -->
+			<FullReadOnlySavingForbidden title="Save failed" message="Cannot save file.
+The Notepad++ full read-only saving forbidden mode prevented the file from being saved."/>
 			<NotEnoughRoom4Saving title="Save failed" message="Failed to save file.
 It seems there's not enough space on disk to save file. Your file is not saved."/>
 			<FileInaccessibleUserSession title="File inaccessible" message="Some files from your manually-saved session &quot;$STR_REPLACE$&quot; are inaccessible. They can be opened as empty and read-only documents as placeholders.
@@ -1592,7 +1611,8 @@ If you require the backward regex searching feature, consult the user manual for
 			<PrintError title="0" message="Cannot start printer document."/><!-- Use title="0" to use Windows OS default translated "Error" title. -->
 			<FindAutoChangeOfInSelectionWarning title="Search warning" message="The &quot;In selection&quot; checkbox state has been automatically modified.
 Please verify the search condition before performing the action."/> <!-- HowToReproduce: https://github.com/notepad-plus-plus/notepad-plus-plus/issues/14897#issuecomment-2564316224 -->
-			<Need2Restart2ShowMenuShortcuts title="Notepad++ needs to be restarted" message="Notepad++ needs to be restarted to show right menu shorcuts."/>
+			<Need2Restart2ShowMenuShortcuts title="Notepad++ needs to be restarted" message="Notepad++ needs to be restarted to show right menu shortcuts."/>
+			<NoAdminRight2ChangeReadOnlyFileAttribute title="Changing file read-only attribute failed" message="Please run Notepad++ as administrator to change the file attributes."/>
 		</MessageBox>
 		<ClipboardHistory>
 			<PanelTitle name="Clipboard History"/>
@@ -1609,6 +1629,7 @@ Please verify the search condition before performing the action."/> <!-- HowToRe
 			<ColumnPath name="Path"/>
 			<ColumnType name="Type"/>
 			<ColumnSize name="Size"/>
+			<ColumnDateTime name="Modified time"/>
 			<NbDocsTotal name="total documents:"/>
 			<MenuCopyName name="Copy Name(s)"/>
 			<MenuCopyPath name="Copy Pathname(s)"/>
@@ -1757,6 +1778,9 @@ Find in all files but exclude all folders log or logs recursively:
 			<find-status-scope-all value="in entire file"/>
 			<find-status-scope-backward value="from start-of-file to caret"/>
 			<find-status-scope-forward value="from caret to end-of-file"/>
+			<find-status-invisible-chars-findWhat value="Invisible characters in pasted &quot;Find what&quot; or &quot;Replace with&quot; content"/>
+			<find-status-invisible-chars-findWhat-tip value="Warning: Invisible characters in search (or replace) field.
+The text pasted into this field includes invisible (maybe line-ending) characters. If you proceed without deleting them, they will be included in the search (or replace) text."/>
 			<finder-find-in-finder value="Find in these search results..."/>
 			<finder-close-this value="Close these search results"/>
 			<finder-collapse-all value="Fold all"/>
@@ -1856,7 +1880,8 @@ Click on &quot;?&quot; button on right to open website with User Manual."/>
 			<!-- Don't translate "(&quot;Non-printing characters custom color&quot;)" -->
 			<npcCustomColor-tip value="Go to Style Configurator to change the default custom color for selected whitespace and non-printing characters (&quot;Non-printing characters custom color&quot;)."/>
 			<npcIncludeCcUniEol-tip value="Apply non-printing characters appearance settings to C0, C1 control and Unicode EOL (next line, line separator and paragraph separator) characters."/>
-			<searchingInSelThresh-tip value="Number of selected characters in edit zone to automatically check the &quot;In selection&quot; checkbox when the Find dialog is activated. The maximum value is 1024. Set the value to 0 to disable auto-checking."/>
+			<searchingInSelThresh-tip value="Minimum number of selected characters in edit zone to automatically check the &quot;In selection&quot; checkbox when the Find dialog is activated. The maximum value is $INT_REPLACE$. Set the value to 0 to disable auto-checking."/>
+			<searchingFillFindWhat-tip value="Maximum number of selected characters in edit zone to fill automatically the &quot;Find what&quot; field when the Ctrl-F is triggered. The maximum value is $INT_REPLACE$, which is the maximum size of &quot;Find what&quot; field, limited by the system."/>
 			<verticalEdge-tip value="Add your column marker by indicating its position with a decimal number. You can define several column markers by using white space to separate the different numbers."/>
 			<fileSaveAsCopySaveButton-tip value="Hold Shift while pressing Save to open the copy after saving."/>
 			<autoIndentBasic-tip value="Ensure that the indentation of the current line (i.e. the new line created by pressing the ENTER key) matches the indentation of the previous line."/>
@@ -1880,6 +1905,13 @@ If you select advanced mode but do not edit files in the aforementioned language
 			<statusbar-Sel value="Sel: "/>
 			<statusbar-Sel-number value="Sel"/>
 			<toolbar-accent-tip value="This option makes your toolbar icons follow Windows system accent color. Accent color is the highlight color used in buttons, borders, and Start menu tiles in Windows. To change it, go to Settings &gt; Personalization &gt; Colors, then select your preferred accent color."/>
+			<len-limit-exceeded-tip value="Length limit exceeded: Your input may exceed the limit allowed and could have been truncated, and it won't be saved for the next session."/>
+			<max-len-on-search-tip value="Your input may exceed the limit allowed and could have been truncated, and it won't be saved for the next session."/>
+			<max-len-on-save-tip value="The length of your input is very long and may not be saved for your next session."/>
+			<goto-setting-tip value="Find your setting here"/>
+			<tabbar-tabcompactlabellen-tip value="Limits the visible length of long tab names. Enter to apply the given value. Value range: 1-257 characters (0 disables the truncation)."/>
 		</MiscStrings>
 	</Native-Langue>
 </NotepadPlus>
+
+

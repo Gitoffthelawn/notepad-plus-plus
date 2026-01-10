@@ -140,7 +140,7 @@ size_t Utf8_16_Read::convert(char* buf, size_t len)
     {
 		case uni7Bit:
         case uni8Bit:
-        case uniCookie:
+        case uniUTF8_NoBOM:
 		{
             // Do nothing, pass through
 			m_nAllocatedBufSize = 0;
@@ -249,8 +249,9 @@ void Utf8_16_Read::determineEncoding()
 	else
 	{
 		u78 detectedEncoding = utf8_7bits_8bits();
+
 		if (detectedEncoding == utf8NoBOM)
-			m_eEncoding = uniCookie;
+			m_eEncoding = uniUTF8_NoBOM;
 		else if (detectedEncoding == ascii7bits)
 			m_eEncoding = uni7Bit;
 		else //(detectedEncoding == ascii8bits)
@@ -259,7 +260,7 @@ void Utf8_16_Read::determineEncoding()
 	}
 }
 
-UniMode Utf8_16_Read::determineEncoding(const unsigned char *buf, size_t bufLen)
+UniMode Utf8_16_Read::determineEncodingFromBOM(const unsigned char *buf, size_t bufLen)
 {
     // detect UTF-16 big-endian with BOM
 	if (bufLen > 1 && buf[0] == k_Boms[uni16BE][0] && buf[1] == k_Boms[uni16BE][1])
@@ -292,6 +293,7 @@ Utf8_16_Write::Utf8_16_Write()
 	m_pNewBuf = NULL;
 	m_bFirstWrite = true;
 	m_nBufSize = 0;
+	m_dwLastFileError = NO_ERROR;
 }
 
 Utf8_16_Write::~Utf8_16_Write()
@@ -301,10 +303,13 @@ Utf8_16_Write::~Utf8_16_Write()
 
 bool Utf8_16_Write::openFile(const wchar_t *name)
 {
-	m_pFile = std::make_unique<Win32_IO_File>(name);
+	m_dwLastFileError = NO_ERROR;
 
+	m_pFile = std::make_unique<Win32_IO_File>(name);
 	if (!m_pFile)
 		return false;
+
+	m_dwLastFileError = m_pFile->getLastErrorCode();
 
 	if (!m_pFile->isOpened())
 	{
@@ -319,78 +324,85 @@ bool Utf8_16_Write::openFile(const wchar_t *name)
 
 bool Utf8_16_Write::writeFile(const void* p, size_t _size)
 {
-    // no file open
+	m_dwLastFileError = NO_ERROR;
+
+	// no file open
 	if (!m_pFile)
-    {
 		return false;
-	}
 
 	if (m_bFirstWrite)
-    {
-        switch (m_eEncoding)
-        {
-            case uniUTF8:
+	{
+		switch (m_eEncoding)
+		{
+			case uniUTF8:
 			{
-                if (!m_pFile->write(k_Boms[m_eEncoding], 3))
+				if (!m_pFile->write(k_Boms[m_eEncoding], 3))
+				{
+					m_dwLastFileError = m_pFile->getLastErrorCode();
 					return false;
-            }
-			break;
-
-            case uni16BE:
-            case uni16LE:
-			{
-				if (!m_pFile->write(k_Boms[m_eEncoding], 2))
-					return false;
+				}
 			}
 			break;
 
-            default:
+			case uni16BE:
+			case uni16LE:
+			{
+				if (!m_pFile->write(k_Boms[m_eEncoding], 2))
+				{
+					m_dwLastFileError = m_pFile->getLastErrorCode();
+					return false;
+				}
+			}
+			break;
+
+			default:
 			{
 				// nothing to do
 			}
 			break;
-        }
+		}
 		m_bFirstWrite = false;
-    }
+	}
 
-    bool isOK = false;
+	bool isOK = false;
 
-    switch (m_eEncoding)
-    {
+	switch (m_eEncoding)
+	{
 		case uni7Bit:
-        case uni8Bit:
-        case uniCookie:
-        case uniUTF8:
+		case uni8Bit:
+		case uniUTF8_NoBOM:
+		case uniUTF8:
 		{
-            // Normal write
+			// Normal write
 			if (m_pFile->write(p, _size))
 				isOK = true;
-
-        }
+			m_dwLastFileError = m_pFile->getLastErrorCode();
+		}
 		break;
 
-        case uni16BE_NoBOM:
-        case uni16LE_NoBOM:
-        case uni16BE:
-        case uni16LE:
+		case uni16BE_NoBOM:
+		case uni16LE_NoBOM:
+		case uni16BE:
+		case uni16LE:
 		{
-			static const unsigned int bufSize = 64*1024;
+			static const unsigned int bufSize = 64 * 1024;
 			utf16* buf = new utf16[bufSize];
-            
-            Utf8_Iter iter8;
-            iter8.set(static_cast<const ubyte*>(p), _size, m_eEncoding);
+
+			Utf8_Iter iter8;
+			iter8.set(static_cast<const ubyte*>(p), _size, m_eEncoding);
 
 			unsigned int bufIndex = 0;
 			while (iter8)
 			{
 				++iter8;
 				while ((bufIndex < bufSize) && iter8.canGet())
-					iter8.get(&buf [bufIndex++]);
+					iter8.get(&buf[bufIndex++]);
 
 				if (bufIndex == bufSize || !iter8)
 				{
 					if (!m_pFile->write(buf, bufIndex * sizeof(utf16)))
 					{
+						m_dwLastFileError = m_pFile->getLastErrorCode();
 						delete[] buf;
 						return 0;
 					}
@@ -399,15 +411,14 @@ bool Utf8_16_Write::writeFile(const void* p, size_t _size)
 			}
 			isOK = true;
 			delete[] buf;
-            
-        }
+		}
 		break;
-        
-		default:
-            break;
-    }
 
-    return isOK;
+		default:
+			break;
+	}
+
+	return isOK;
 }
 
 
@@ -426,7 +437,7 @@ size_t Utf8_16_Write::convert(char* p, size_t _size)
 		{
 		case uni7Bit:
 		case uni8Bit:
-		case uniCookie:
+		case uniUTF8_NoBOM:
 		{
 			// Normal write
 			m_pNewBuf = new ubyte[_size];
@@ -506,7 +517,15 @@ void Utf8_16_Write::closeFile()
 	}
 
 	if (m_pFile)
+	{
+		m_pFile->close(); // explicit closing for getting the possible flushing/closing error code
+		m_dwLastFileError = m_pFile->getLastErrorCode();
 		m_pFile = nullptr;
+	}
+	else
+	{
+		m_dwLastFileError = NO_ERROR;
+	}
 }
 
 

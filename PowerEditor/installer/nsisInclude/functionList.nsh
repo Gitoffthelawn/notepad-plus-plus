@@ -38,6 +38,11 @@ SectionGroup "Function List Files" functionListComponent
 		File ".\functionList\cs.xml"
 	${MementoSectionEnd}
 
+	${MementoSection} "CSS" CSS_FL
+		SetOutPath "$INSTDIR\functionList"
+		File ".\functionList\css.xml"
+	${MementoSectionEnd}
+
 	${MementoSection} "Assembly" Assembly_FL
 		SetOutPath "$INSTDIR\functionList"
 		File ".\functionList\asm.xml"
@@ -58,7 +63,7 @@ SectionGroup "Function List Files" functionListComponent
 		File ".\functionList\php.xml"
 	${MementoSectionEnd}
 
-	${MementoSection} "COBOL section free" COBOL-section-free
+	${MementoSection} "COBOL section free" COBOL-section-free_FL
 		SetOutPath "$INSTDIR\functionList"
 		File ".\functionList\cobol-free.xml"
 	${MementoSectionEnd}
@@ -233,6 +238,11 @@ SectionGroup "Function List Files" functionListComponent
 		File ".\functionList\sas.xml"
 	${MementoSectionEnd}
 
+	${MementoSection} "makefile" MAKEFILE_FL
+		SetOutPath "$INSTDIR\functionList"
+		File ".\functionList\makefile.xml"
+	${MementoSectionEnd}
+
 	SetOverwrite off
 	${MementoSection} "Override Map" OverrideMap_FL
 		SetOutPath "$INSTDIR\functionList"
@@ -281,6 +291,10 @@ SectionGroup un.functionListComponent
 
 	Section un.C#_FL
 		Delete "$INSTDIR\functionList\cs.xml"
+	SectionEnd
+
+	Section un.CSS_FL
+		Delete "$INSTDIR\functionList\css.xml"
 	SectionEnd
 
 	Section un.JavaScript_FL
@@ -417,6 +431,10 @@ SectionGroup un.functionListComponent
 
 	Section un.SAS_FL
 		Delete "$INSTDIR\functionList\sas.xml"
+	SectionEnd
+
+	Section un.MAKEFILE_FL
+		Delete "$INSTDIR\functionList\makefile.xml"
 	SectionEnd
 
 SectionGroupEnd

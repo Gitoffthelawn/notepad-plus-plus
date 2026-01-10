@@ -91,6 +91,8 @@ void Notepad_plus_Window::init(HINSTANCE hInst, HWND parent, const wchar_t *cmdL
 		_notepad_plus_plus_core._pluginsManager.disable();
 
 	nppGUI._isCmdlineNosessionActivated = cmdLineParams->_isNoSession;
+	nppGUI._isFullReadOnly = cmdLineParams->_isFullReadOnly;
+	nppGUI._isFullReadOnlySavingForbidden = cmdLineParams->_isFullReadOnlySavingForbidden;
 
 	_hIconAbsent = ::LoadIcon(hInst, MAKEINTRESOURCE(IDI_ICONABSENT));
 
@@ -99,7 +101,7 @@ void Notepad_plus_Window::init(HINSTANCE hInst, HWND parent, const wchar_t *cmdL
 		_className,
 		L"Notepad++",
 		(WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN),
-		// CreateWindowEx bug : set all 0 to walk around the pb
+		// CreateWindowEx bug : set all 0 to walk around the problem
 		0, 0, 0, 0,
 		_hParent, nullptr, _hInst,
 		(LPVOID) this); // pass the ptr of this instantiated object
@@ -109,6 +111,14 @@ void Notepad_plus_Window::init(HINSTANCE hInst, HWND parent, const wchar_t *cmdL
 	if (NULL == _hSelf)
 		throw std::runtime_error("Notepad_plus_Window::init : CreateWindowEx() function return null");
 
+	if (!cmdLineParams->_pluginMessage.empty())
+	{
+		SCNotification scnN{};
+		scnN.nmhdr.code = NPPN_CMDLINEPLUGINMSG;
+		scnN.nmhdr.hwndFrom = _hSelf;
+		scnN.nmhdr.idFrom = reinterpret_cast<uptr_t>(cmdLineParams->_pluginMessage.c_str());
+		_notepad_plus_plus_core._pluginsManager.notify(&scnN);
+	}
 
 	PaintLocker paintLocker{_hSelf};
 
@@ -159,7 +169,8 @@ void Notepad_plus_Window::init(HINSTANCE hInst, HWND parent, const wchar_t *cmdL
 		if (cmdLineParams->_isNoTab)
 		{
 			// Restore old settings when tab bar has been hidden from tab bar.
-			nppGUI._tabStatus = tabStatusOld;
+			if (!(tabStatusOld & TAB_HIDE))
+				nppGUI._forceTabbarVisible = true;
 		}
 	}
 
@@ -361,28 +372,32 @@ void Notepad_plus_Window::init(HINSTANCE hInst, HWND parent, const wchar_t *cmdL
 
 			_notepad_plus_plus_core.showQuote(&_quoteParams);
 		}
-		else if (cmdLineParams->_quoteType == 2) // content drom file
+		else if (cmdLineParams->_quoteType == 2) // content from file
 		{
 			if (doesFileExist(cmdLineParams->_easterEggName.c_str()))
 			{
-				std::string content = getFileContent(cmdLineParams->_easterEggName.c_str());
-				WcharMbcsConvertor& wmc = WcharMbcsConvertor::getInstance();
-				_userQuote = wmc.char2wchar(content.c_str(), SC_CP_UTF8);
-				if (!_userQuote.empty())
+				bool bLoadingFailed = false;
+				std::string content = getFileContent(cmdLineParams->_easterEggName.c_str(), &bLoadingFailed);
+				if (!bLoadingFailed)
 				{
-					_quoteParams.reset();
-					_quoteParams._quote = _userQuote.c_str();
-					_quoteParams._quoter = L"Anonymous #999";
-					_quoteParams._shouldBeTrolling = false;
-					_quoteParams._lang = cmdLineParams->_langType;
-					if (cmdLineParams->_ghostTypingSpeed == 1)
-						_quoteParams._speed = QuoteParams::slow;
-					else if (cmdLineParams->_ghostTypingSpeed == 2)
-						_quoteParams._speed = QuoteParams::rapid;
-					else if (cmdLineParams->_ghostTypingSpeed == 3)
-						_quoteParams._speed = QuoteParams::speedOfLight;
+					WcharMbcsConvertor& wmc = WcharMbcsConvertor::getInstance();
+					_userQuote = wmc.char2wchar(content.c_str(), SC_CP_UTF8);
+					if (!_userQuote.empty())
+					{
+						_quoteParams.reset();
+						_quoteParams._quote = _userQuote.c_str();
+						_quoteParams._quoter = L"Anonymous #999";
+						_quoteParams._shouldBeTrolling = false;
+						_quoteParams._lang = cmdLineParams->_langType;
+						if (cmdLineParams->_ghostTypingSpeed == 1)
+							_quoteParams._speed = QuoteParams::slow;
+						else if (cmdLineParams->_ghostTypingSpeed == 2)
+							_quoteParams._speed = QuoteParams::rapid;
+						else if (cmdLineParams->_ghostTypingSpeed == 3)
+							_quoteParams._speed = QuoteParams::speedOfLight;
 
-					_notepad_plus_plus_core.showQuote(&_quoteParams);
+						_notepad_plus_plus_core.showQuote(&_quoteParams);
+					}
 				}
 			}
 		}
@@ -400,11 +415,16 @@ void Notepad_plus_Window::init(HINSTANCE hInst, HWND parent, const wchar_t *cmdL
 		::MessageBoxW(NULL, wss.str().c_str(), L"Notepad++ loading time (hh:mm:ss.ms)", MB_OK);
 	}
 
+	if (cmdLineParams->_displayCmdLineArgs)
+	{
+		_notepad_plus_plus_core.command(IDM_CMDLINEARGUMENTS);
+	}
+
 	bool isSnapshotMode = nppGUI.isSnapshotMode();
 	if (isSnapshotMode)
 	{
 		_notepad_plus_plus_core.checkModifiedDocument(false);
-		// Lauch backup task
+		// Launch backup task
 		_notepad_plus_plus_core.launchDocumentBackupTask();
 	}
 
