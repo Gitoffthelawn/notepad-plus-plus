@@ -122,20 +122,20 @@ public:
 	bool _isWrap = false;
 	bool isValid() const { return (_firstVisibleDisplayLine != -1); }
 	bool canScroll() const { return (_KByteInDoc < _maxPeekLenInKB); } // _nbCharInDoc < _maxPeekLen : Don't scroll the document for the performance issue
+	static constexpr intptr_t getMaxPeekLenInKB() { return _maxPeekLenInKB; }
 };
 
 
 struct sessionFileInfo : public Position
 {
-	sessionFileInfo(const wchar_t* fn, const wchar_t *ln, int encoding, bool userReadOnly,bool isPinned, bool isUntitleTabRenamed, const Position& pos, const wchar_t *backupFilePath, FILETIME originalFileLastModifTimestamp, const MapPosition & mapPos) :
-		Position(pos), _encoding(encoding), _isUserReadOnly(userReadOnly), _isPinned(isPinned), _isUntitledTabRenamed(isUntitleTabRenamed), _originalFileLastModifTimestamp(originalFileLastModifTimestamp), _mapPos(mapPos)
-	{
-		if (fn) _fileName = fn;
-		if (ln)	_langName = ln;
-		if (backupFilePath) _backupFilePath = backupFilePath;
-	}
+	sessionFileInfo(const wchar_t* fn, const wchar_t* ln, int encoding, bool userReadOnly, bool isPinned, bool isUntitleTabRenamed, const Position& pos, const wchar_t* backupFilePath, FILETIME originalFileLastModifTimestamp, const MapPosition& mapPos) noexcept
+		: Position(pos), _fileName(fn ? fn : L""), _langName(ln ? ln : L"")
+		, _encoding(encoding), _isUserReadOnly(userReadOnly), _isPinned(isPinned)
+		, _isUntitledTabRenamed(isUntitleTabRenamed), _backupFilePath(backupFilePath ? backupFilePath : L"")
+		, _originalFileLastModifTimestamp(originalFileLastModifTimestamp), _mapPos(mapPos)
+	{}
 
-	sessionFileInfo(const std::wstring& fn) : _fileName(fn) {}
+	explicit sessionFileInfo(const std::wstring& fn) noexcept : _fileName(fn) {}
 
 	std::wstring _fileName;
 	std::wstring _langName;
@@ -962,45 +962,29 @@ struct Lang final
 {
 	LangType _langID = L_TEXT;
 	std::wstring _langName;
-	const wchar_t* _defaultExtList = nullptr;
-	const wchar_t* _langKeyWordList[NB_LIST];
-	const wchar_t* _pCommentLineSymbol = nullptr;
-	const wchar_t* _pCommentStart = nullptr;
-	const wchar_t* _pCommentEnd = nullptr;
+	std::wstring _defaultExtList;
+	std::wstring _langKeyWordList[NB_LIST];
+	std::string _pCommentLineSymbol;
+	std::string _pCommentStart;
+	std::string _pCommentEnd;
 
-	bool _isTabReplacedBySpace = false;
 	int _tabSize = -1;
+	bool _isTabReplacedBySpace = false;
 	bool _isBackspaceUnindent = false;
 
-	Lang()
-	{
-		for (int i = 0 ; i < NB_LIST ; _langKeyWordList[i] = NULL, ++i);
-	}
+	Lang() noexcept = default;
 
-	Lang(LangType langID, const wchar_t *name) : _langID(langID), _langName(name ? name : L"")
+	Lang(LangType langID, const wchar_t* name, const wchar_t* extLst, const char* commentLine, const char* commentStart, const char* commentEnd, int tabInfo, bool isBackspaceUnindent) noexcept
+		: _langID(langID), _langName(name), _defaultExtList(extLst)
+		, _pCommentLineSymbol(commentLine), _pCommentStart(commentStart), _pCommentEnd(commentEnd)
+		, _isBackspaceUnindent(isBackspaceUnindent)
 	{
-		for (int i = 0 ; i < NB_LIST ; _langKeyWordList[i] = NULL, ++i);
+		setTabInfo(tabInfo);
 	}
 
 	~Lang() = default;
 
-	void setDefaultExtList(const wchar_t *extLst){
-		_defaultExtList = extLst;
-	}
-
-	void setCommentLineSymbol(const wchar_t *commentLine){
-		_pCommentLineSymbol = commentLine;
-	}
-
-	void setCommentStart(const wchar_t *commentStart){
-		_pCommentStart = commentStart;
-	}
-
-	void setCommentEnd(const wchar_t *commentEnd){
-		_pCommentEnd = commentEnd;
-	}
-
-	void setTabInfo(int tabInfo, bool isBackspaceUnindent)
+	void setTabInfo(int tabInfo)
 	{
 		static constexpr int MASK_ReplaceBySpc = 0x80;
 		static constexpr int MASK_TabSize = 0x7F;
@@ -1009,20 +993,18 @@ struct Lang final
 			_isTabReplacedBySpace = (tabInfo & MASK_ReplaceBySpc) != 0;
 			_tabSize = tabInfo & MASK_TabSize;
 		}
-
-		_isBackspaceUnindent = isBackspaceUnindent;
 	}
 
-	const wchar_t * getDefaultExtList() const {
-		return _defaultExtList;
+	const wchar_t* getDefaultExtList() const {
+		return _defaultExtList.c_str();
 	}
 
-	void setWords(const wchar_t *words, int index) {
+	void setWords(const wchar_t* words, int index) {
 		_langKeyWordList[index] = words;
 	}
 
-	const wchar_t * getWords(int index) const {
-		return _langKeyWordList[index];
+	const wchar_t* getWords(int index) const {
+		return _langKeyWordList[index].c_str();
 	}
 
 	LangType getLangID() const { return _langID; }
@@ -1423,22 +1405,22 @@ public:
 
 	LangType getLangFromExt(const wchar_t *ext);
 
-	const wchar_t * getLangExtFromName(const wchar_t *langName) const
+	const wchar_t* getLangExtFromName(const wchar_t* langName) const
 	{
 		for (int i = 0 ; i < _nbLang ; ++i)
 		{
 			if (_langList[i]->_langName == langName)
-				return _langList[i]->_defaultExtList;
+				return _langList[i]->getDefaultExtList();
 		}
 		return nullptr;
 	}
 
-	const wchar_t * getLangExtFromLangType(LangType langType) const
+	const wchar_t* getLangExtFromLangType(LangType langType) const
 	{
 		for (int i = 0 ; i < _nbLang ; ++i)
 		{
 			if (_langList[i]->_langID == langType)
-				return _langList[i]->_defaultExtList;
+				return _langList[i]->getDefaultExtList();
 		}
 		return nullptr;
 	}
@@ -1517,7 +1499,7 @@ public:
 	void writeNonDefaultUDL();
 	void writeNeed2SaveUDL();
 	void writeShortcuts();
-	void writeSession(const Session & session, const wchar_t *fileName = NULL);
+	void writeSession(const Session& session, const wchar_t* fileName = nullptr);
 	bool writeFindHistory();
 
 	bool isExistingUserLangName(const wchar_t *newName) const
@@ -2007,7 +1989,7 @@ private:
 	bool getUserCmdsFromXmlTree();
 	bool getPluginCmdsFromXmlTree();
 	bool getScintKeysFromXmlTree();
-	bool getSessionFromXmlTree(TiXmlDocument *pSessionDoc, Session& session);
+	static bool getSessionFromXmlTree(const NppXml::Document& pSessionDoc, Session& session);
 
 	void feedGUIParameters(TiXmlNode *node);
 	void feedKeyWordsParameters(TiXmlNode *node);
