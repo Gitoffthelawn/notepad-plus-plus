@@ -948,7 +948,7 @@ struct Lang final
 	LangType _langID = L_TEXT;
 	std::wstring _langName;
 	std::wstring _defaultExtList;
-	std::wstring _langKeyWordList[NB_LIST];
+	std::string _langKeyWordList[NB_LIST];
 	std::string _pCommentLineSymbol;
 	std::string _pCommentStart;
 	std::string _pCommentEnd;
@@ -984,11 +984,11 @@ struct Lang final
 		return _defaultExtList.c_str();
 	}
 
-	void setWords(const wchar_t* words, int index) {
+	void setWords(const char* words, int index) {
 		_langKeyWordList[index] = words;
 	}
 
-	const wchar_t* getWords(int index) const {
+	const char* getWords(int index) const {
 		return _langKeyWordList[index].c_str();
 	}
 
@@ -1020,7 +1020,7 @@ public:
 		_forcePureLC(ulc._forcePureLC),
 		_decimalSeparator(ulc._decimalSeparator),
 		_isCaseIgnored(ulc._isCaseIgnored),
-		_allowFoldOfComments(ulc._allowFoldOfComments),	
+		_allowFoldOfComments(ulc._allowFoldOfComments),
 		_foldCompact(ulc._foldCompact),
 		_isDarkModeTheme(ulc._isDarkModeTheme)
 	{
@@ -1084,7 +1084,7 @@ private:
 	std::wstring _ext;
 	std::string _udlVersion;
 
-	std::wstring _keywordLists[SCE_USER_KWLIST_TOTAL];
+	std::string _keywordLists[SCE_USER_KWLIST_TOTAL];
 	bool _isPrefix[SCE_USER_TOTAL_KEYWORD_GROUPS] = { false };
 
 	int  _forcePureLC = PURE_LC_NONE;
@@ -1401,7 +1401,7 @@ public:
 		return _nppGUI;
 	}
 
-	const wchar_t * getWordList(LangType langID, int typeIndex) const
+	const char* getWordList(LangType langID, int typeIndex) const
 	{
 		const Lang* pLang = getLangFromID(langID);
 		if (!pLang) return nullptr;
@@ -2000,14 +2000,14 @@ private:
 
 	void feedGUIParameters(TiXmlNode *node);
 	void feedKeyWordsParameters(const NppXml::Element& element);
-	void feedFileListParameters(TiXmlNode *node);
+	void feedFileListParameters(const NppXml::Element& element);
 	void feedScintillaParam(TiXmlNode *node);
 	void feedDockingManager(TiXmlNode *node);
 	void duplicateDockingManager(TiXmlNode *dockMngNode, TiXmlElement* dockMngElmt2Clone);
-	void feedFindHistoryParameters(TiXmlNode *node);
-	void feedProjectPanelsParameters(TiXmlNode *node);
-	void feedFileBrowserParameters(TiXmlNode *node);
-	void feedColumnEditorParameters(TiXmlNode *node);
+	void feedFindHistoryParameters(const NppXml::Element& element);
+	void feedProjectPanelsParameters(const NppXml::Element& element);
+	void feedFileBrowserParameters(const NppXml::Element& element);
+	void feedColumnEditorParameters(const NppXml::Element& element);
 	bool feedStylerArray(const NppXml::Element& element);
 	std::pair<unsigned char, unsigned char> feedUserLang(const NppXml::Element& element);
 	void feedUserStyles(const NppXml::Element& element);
