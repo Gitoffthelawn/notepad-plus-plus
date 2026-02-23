@@ -259,7 +259,7 @@ struct FloatingWindowInfo
 	RECT _pos = { 0, 0, FWI_PANEL_WH_DEFAULT, FWI_PANEL_WH_DEFAULT };
 
 	explicit FloatingWindowInfo(int cont, int x, int y, int w, int h) noexcept
-		: _cont(cont), _pos(x, y, w, h)
+		: _cont(cont), _pos{ x, y, w, h }
 	{}
 };
 
@@ -726,6 +726,7 @@ struct NppGUI final
 	bool _finderLinesAreCurrentlyWrapped = false;
 	bool _finderPurgeBeforeEverySearch = false;
 	bool _finderShowOnlyOneEntryPerFoundLine = true;
+	bool _fif_ignoreunsavedChangesInOpenedFiles = false;
 
 	int _fileAutoDetection = cdEnabledNew;
 
