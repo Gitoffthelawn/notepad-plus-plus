@@ -637,6 +637,7 @@ static constexpr ScintillaKeyDefinition scintKeyDefs[]
 };
 
 #define SHORTCUTSXML_FILENAME L"shortcuts.xml"
+#define SHORTCUTSXML_MODEL_FILENAME L"shortcuts.model.xml"
 
 #define SESSION_BACKUP_EXT L".inCaseOfCorruption.bak"
 
@@ -1660,7 +1661,12 @@ bool NppParameters::load()
 
 	if (!doesFileExist(_shortcutsPath.c_str()))
 	{
-		generateXmlFromScratch(_shortcutsPath.c_str(), SHORTCUT_XML_CONTENT);
+		std::wstring srcShortcutsPath(_nppPath);
+		pathAppend(srcShortcutsPath, SHORTCUTSXML_MODEL_FILENAME);
+		if (doesFileExist(srcShortcutsPath.c_str()))
+			::CopyFile(srcShortcutsPath.c_str(), _shortcutsPath.c_str(), TRUE);
+		else
+			generateXmlFromScratch(_shortcutsPath.c_str(), SHORTCUT_XML_CONTENT);
 	}
 
 	_pXmlShortcutDoc = new NppXml::NewDocument();
@@ -1690,7 +1696,13 @@ bool NppParameters::load()
 
 	if (!doesFileExist(_contextMenuPath.c_str()))
 	{
-		generateXmlFromScratch(_contextMenuPath.c_str(), CONTEXTMENU_XML_CONTENT);
+		std::wstring srcContextMenuPath(_nppPath);
+		pathAppend(srcContextMenuPath, L"contextMenu.xml");
+
+		if (doesFileExist(srcContextMenuPath.c_str()))
+			::CopyFile(srcContextMenuPath.c_str(), _contextMenuPath.c_str(), TRUE);
+		else
+			generateXmlFromScratch(_contextMenuPath.c_str(), CONTEXTMENU_XML_CONTENT);
 	}
 
 	_pXmlContextMenuDoc = new NppXml::NewDocument();
