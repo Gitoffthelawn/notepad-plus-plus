@@ -639,6 +639,9 @@ static constexpr ScintillaKeyDefinition scintKeyDefs[]
 #define SHORTCUTSXML_FILENAME L"shortcuts.xml"
 #define SHORTCUTSXML_MODEL_FILENAME L"shortcuts.model.xml"
 
+#define CONTEXTMENUXML_FILENAME L"contextMenu.xml"
+#define CONTEXTMENUXML_MODEL_FILENAME L"contextMenu.model.xml"
+
 #define SESSION_BACKUP_EXT L".inCaseOfCorruption.bak"
 
 using PGNSI = void (WINAPI*)(LPSYSTEM_INFO);
@@ -1692,12 +1695,12 @@ bool NppParameters::load()
 	// contextMenu.xml : for per-user //
 	//--------------------------------//
 	_contextMenuPath = _userPath;
-	pathAppend(_contextMenuPath, L"contextMenu.xml");
+	pathAppend(_contextMenuPath, CONTEXTMENUXML_FILENAME);
 
 	if (!doesFileExist(_contextMenuPath.c_str()))
 	{
 		std::wstring srcContextMenuPath(_nppPath);
-		pathAppend(srcContextMenuPath, L"contextMenu.xml");
+		pathAppend(srcContextMenuPath, CONTEXTMENUXML_MODEL_FILENAME);
 
 		if (doesFileExist(srcContextMenuPath.c_str()))
 			::CopyFile(srcContextMenuPath.c_str(), _contextMenuPath.c_str(), TRUE);
