@@ -5259,13 +5259,13 @@ void FindReplaceDlg::calcAndSetCtrlsPos(DIALOG_TYPE dlgT, bool fromColBtn)
 		LONG yFrame = -btnGapOneHalf;
 		LONG hFrame = btnGapDbl;
 		int ySelCheck = rcBtn3rdPos.top;
-		RECT rcToUse{};
+		RECT closeNewRc{};
 
 		switch (dlgT)
 		{
 			case FIND_DLG:
 			{
-				getMappedChildRect(IDC_FINDALL_OPENEDFILES, rcToUse);
+				getMappedChildRect(IDC_FINDALL_OPENEDFILES, closeNewRc);
 
 				RECT rcBtn3rdPosLarge{};
 				getMappedChildRect(IDC_FINDALL_CURRENTFILE, rcBtn3rdPosLarge);
@@ -5276,7 +5276,7 @@ void FindReplaceDlg::calcAndSetCtrlsPos(DIALOG_TYPE dlgT, bool fromColBtn)
 
 			case REPLACE_DLG:
 			{
-				getMappedChildRect(IDC_REPLACE_OPENEDFILES, rcToUse);
+				getMappedChildRect(IDC_REPLACE_OPENEDFILES, closeNewRc);
 
 				yFrame += rcBtn3rdPos.top;
 				hFrame += (rcBtn3rdPos.bottom - rcBtn3rdPos.top);
@@ -5286,25 +5286,26 @@ void FindReplaceDlg::calcAndSetCtrlsPos(DIALOG_TYPE dlgT, bool fromColBtn)
 			case FINDINFILES_DLG:
 			case FINDINPROJECTS_DLG:
 			{
-				rcToUse = rcBtn2ndPos;
+				closeNewRc = rcBtn2ndPos;
 				break;
 			}
 
 			case MARK_DLG:
 			{
-
 				RECT rcBtn1stPos{};
 				getMappedChildRect(IDOK, rcBtn1stPos);
-				yFrame += rcBtn1stPos.top;
+				yFrame += rcBtn2ndPos.top;
 				hFrame += (rcBtn2ndPos.bottom - rcBtn1stPos.top);
 				ySelCheck = rcBtn2ndPos.top;
 
-				rcToUse = rcBtn3rdPos;
+				RECT rcCopyMarkedBtn{};
+				getMappedChildRect(IDC_COPY_MARKED_TEXT, rcCopyMarkedBtn);
+				closeNewRc = rcCopyMarkedBtn;
 				break;
 			}
 		}
 		
-		::SetWindowPos(::GetDlgItem(_hSelf, IDCANCEL), nullptr, rcToUse.left, (rcToUse.bottom + btnGap), 0, 0, SWP_NOSIZE | flags);
+		::SetWindowPos(::GetDlgItem(_hSelf, IDCANCEL), nullptr, closeNewRc.left, (closeNewRc.bottom + btnGap), 0, 0, SWP_NOSIZE | flags);
 
 		if (dlgT == FIND_DLG || dlgT == REPLACE_DLG || dlgT == MARK_DLG)
 		{
