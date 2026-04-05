@@ -45,7 +45,7 @@ public:
 	void showFloatingContainers(bool show);
 
 	void updateContainerInfo(HWND hClient);
-	void createDockableDlg(tTbData data, int iCont = CONT_LEFT, bool isVisible = false);
+	void createDockableDlg(DockedWidgetData data, int iCont = CONT_LEFT, bool isVisible = false);
 	void setActiveTab(int iCont, int iItem);
 	void showDockableDlg(HWND hDlg, BOOL view);
 	void showDockableDlg(wchar_t* pszName, BOOL view);
@@ -94,7 +94,7 @@ private:
 	static LRESULT CALLBACK staticWinProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam);
 	LRESULT runProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam);
 
-	void	toggleTb(DockingCont* pContSrc, DockingCont* pContTgt, tTbData TbData);
+	void	toggleTb(DockingCont* pContSrc, DockingCont* pContTgt, DockedWidgetData TbData);
 
 	// test if container exists
 	BOOL ContExists(size_t iCont);
