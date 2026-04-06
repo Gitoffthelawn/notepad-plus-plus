@@ -369,7 +369,7 @@ LRESULT DockingManager::runProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM l
 		case DMM_DOCK:
 		case DMM_FLOAT:
 		{
-			toggleActiveTb(reinterpret_cast<DockingCont*>(lParam), message);
+			toggleActiveWidget(reinterpret_cast<DockingCont*>(lParam), message);
 			return FALSE;
 		}
 		case DMM_CLOSE:
@@ -380,12 +380,12 @@ LRESULT DockingManager::runProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM l
 		}
 		case DMM_FLOATALL:
 		{
-			toggleVisTb(reinterpret_cast<DockingCont*>(lParam), DMM_FLOAT);
+			toggleVisWidget(reinterpret_cast<DockingCont*>(lParam), DMM_FLOAT);
 			return FALSE;
 		}
 		case DMM_DOCKALL:
 		{
-			toggleVisTb(reinterpret_cast<DockingCont*>(lParam), DMM_DOCK);
+			toggleVisWidget(reinterpret_cast<DockingCont*>(lParam), DMM_DOCK);
 			return FALSE;
 		}
 
@@ -747,12 +747,12 @@ int DockingManager::getDockedContSize(int iCont)
 		return -1;
 }
 
-DockingCont* DockingManager::toggleActiveTb(DockingCont* pContSrc, UINT message, BOOL bNew, LPRECT prcFloat)
+DockingCont* DockingManager::toggleActiveWidget(DockingCont* pContSrc, UINT message, BOOL bNew, LPRECT prcFloat)
 {
 	DockedWidgetData			TbData		= *pContSrc->getDataOfActiveTb();
-	int				iContSrc	= GetContainer(pContSrc);
+	int				iContSrc	= getContainerIndex(pContSrc);
 	int				iContPrev	= TbData.iPrevCont;
-	BOOL			isCont		= ContExists(iContPrev);
+	BOOL			isCont		= doesContExist(iContPrev);
 	DockingCont*	pContTgt	= NULL;
 
 	// if new float position is given
@@ -764,7 +764,7 @@ DockingCont* DockingManager::toggleActiveTb(DockingCont* pContSrc, UINT message,
 	if ((isCont == FALSE) || (bNew == TRUE))
 	{
 		// find an empty container
-		int	iContNew = FindEmptyContainer();
+		int	iContNew = findEmptyContainerIndex();
 
 		if (iContNew == -1)
 		{
@@ -803,7 +803,7 @@ DockingCont* DockingManager::toggleActiveTb(DockingCont* pContSrc, UINT message,
 	}
 
 	// notify client app
-	SendNotify(TbData.hClient, MAKELONG(message==DMM_DOCK?DMN_DOCK:DMN_FLOAT, GetContainer(pContTgt)));
+	SendNotify(TbData.hClient, MAKELONG(message==DMM_DOCK?DMN_DOCK:DMN_FLOAT, getContainerIndex(pContTgt)));
 
 	// remove docked widget from source
 	_vContainer[iContSrc]->removeDockedWidget(TbData);
@@ -811,14 +811,14 @@ DockingCont* DockingManager::toggleActiveTb(DockingCont* pContSrc, UINT message,
 	return pContTgt;
 }
 
-DockingCont* DockingManager::toggleVisTb(DockingCont* pContSrc, UINT message, LPRECT prcFloat)
+DockingCont* DockingManager::toggleVisWidget(DockingCont* pContSrc, UINT message, LPRECT prcFloat)
 {
 	vector<DockedWidgetData*>	vTbData		= pContSrc->getDataOfVisTb();
 	DockedWidgetData*			pTbData		= pContSrc->getDataOfActiveTb();
 
-	int					iContSrc	= GetContainer(pContSrc);
+	int					iContSrc	= getContainerIndex(pContSrc);
 	int					iContPrev	= pTbData->iPrevCont;
-	BOOL				isCont		= ContExists(iContPrev);
+	BOOL				isCont		= doesContExist(iContPrev);
 	DockingCont*		pContTgt	= NULL;
 
 	// at first hide container and resize
@@ -849,7 +849,7 @@ DockingCont* DockingManager::toggleVisTb(DockingCont* pContSrc, UINT message, LP
 
 			// now container exists
 			isCont	= TRUE;
-			iContPrev = GetContainer(pContTgt);
+			iContPrev = getContainerIndex(pContTgt);
 		}
 		else
 		{
@@ -860,7 +860,7 @@ DockingCont* DockingManager::toggleVisTb(DockingCont* pContSrc, UINT message, LP
 			pContTgt->createDockedWidget(TbData);
 		}
 
-		SendNotify(TbData.hClient, MAKELONG(message==DMM_DOCK?DMN_DOCK:DMN_FLOAT, GetContainer(pContTgt)));
+		SendNotify(TbData.hClient, MAKELONG(message==DMM_DOCK?DMN_DOCK:DMN_FLOAT, getContainerIndex(pContTgt)));
 
 		// remove docked widget from anywhere
 		_vContainer[iContSrc]->removeDockedWidget(TbData);
@@ -870,85 +870,80 @@ DockingCont* DockingManager::toggleVisTb(DockingCont* pContSrc, UINT message, LP
 	return pContTgt;
 }
 
-void DockingManager::toggleActiveTb(DockingCont* pContSrc, DockingCont* pContTgt)
+void DockingManager::toggleActiveWidget(DockingCont* pContSrc, DockingCont* pContTgt)
 {
 	DockedWidgetData		TbData		= *pContSrc->getDataOfActiveTb();
 
-	toggleTb(pContSrc, pContTgt, TbData);
+	toggleWidget(pContSrc, pContTgt, TbData);
 }
 
-void DockingManager::toggleVisTb(DockingCont* pContSrc, DockingCont* pContTgt)
+void DockingManager::toggleVisWidget(DockingCont* pContSrc, DockingCont* pContTgt)
 {
-	vector<DockedWidgetData*>	vTbData		= pContSrc->getDataOfVisTb();
-	DockedWidgetData*			pTbData		= pContSrc->getDataOfActiveTb();
+	vector<DockedWidgetData*> dwDataVect = pContSrc->getDataOfVisTb();
+	DockedWidgetData* dwData = pContSrc->getDataOfActiveTb();
 
 	// at first hide container and resize
 	pContSrc->doDialog(false);
 	resize();
 
-	for (size_t iTb = 0, len = vTbData.size(); iTb < len; ++iTb)
+	for (size_t iTb = 0, len = dwDataVect.size(); iTb < len; ++iTb)
 	{
 		// get data one by another
-		DockedWidgetData		TbData = *vTbData[iTb];
-		toggleTb(pContSrc, pContTgt, TbData);
+		toggleWidget(pContSrc, pContTgt, *(dwDataVect[iTb]));
 	}
-	pContTgt->setActiveTb(pTbData);
+	pContTgt->setActiveTb(dwData);
 }
 
-void DockingManager::toggleTb(DockingCont* pContSrc, DockingCont* pContTgt, DockedWidgetData TbData)
+void DockingManager::toggleWidget(DockingCont* pContSrc, DockingCont* pContTgt, DockedWidgetData dwData)
 {
-	int					iContSrc	= GetContainer(pContSrc);
-	int					iContTgt	= GetContainer(pContTgt);
+	int iContSrc = getContainerIndex(pContSrc);
+	int iContTgt = getContainerIndex(pContTgt);
 
 	// test if container state changes from docking to floating or vice versa
 	if (((iContSrc <  DOCKCONT_MAX) && (iContTgt >= DOCKCONT_MAX)) ||
 		((iContSrc >= DOCKCONT_MAX) && (iContTgt <  DOCKCONT_MAX)))
 	{
 		// change states
-		TbData.iPrevCont = iContSrc;
+		dwData.iPrevCont = iContSrc;
 	}
 
 	// notify client app
 	if (iContTgt < DOCKCONT_MAX)
-		SendNotify(TbData.hClient, MAKELONG(DMN_DOCK, iContTgt));
+		SendNotify(dwData.hClient, MAKELONG(DMN_DOCK, iContTgt));
 	else
-		SendNotify(TbData.hClient, MAKELONG(DMN_FLOAT, iContTgt));
+		SendNotify(dwData.hClient, MAKELONG(DMN_FLOAT, iContTgt));
 
 	// create new docked widget
-	pContTgt->createDockedWidget(TbData);
+	pContTgt->createDockedWidget(dwData);
 
 	// remove docked widget from source
-	_vContainer[iContSrc]->removeDockedWidget(TbData);
+	_vContainer[iContSrc]->removeDockedWidget(dwData);
 }
 
-BOOL DockingManager::ContExists(size_t iCont)
+BOOL DockingManager::doesContExist(size_t iCont)
 {
-	BOOL	bRet = FALSE;
-
 	if (iCont < _vContainer.size())
 	{
-		bRet = TRUE;
+		return TRUE;
 	}
 
-	return bRet;
+	return FALSE;
 }
 
-int DockingManager::GetContainer(DockingCont* pCont)
+int DockingManager::getContainerIndex(DockingCont* pCont)
 {
-	int iRet = -1;
 	for (size_t iCont = 0, len = _vContainer.size(); iCont < len; ++iCont)
 	{
 		if (_vContainer[iCont] == pCont)
 		{
-			iRet = static_cast<int32_t>(iCont);
-			break;
+			return static_cast<int32_t>(iCont);
 		}
 	}
 
-	return iRet;
+	return -1;
 }
 
-int DockingManager::FindEmptyContainer()
+int DockingManager::findEmptyContainerIndex()
 {
 	int iRetCont = -1;
 	const size_t dockingContVectorSize = _vContainer.size();

@@ -6360,7 +6360,7 @@ bool Notepad_plus::getIntegralDockingData(DockedWidgetData & dockData, int & iCo
 			if (dockData.iPrevCont != -1)
 			{
 				int cont = (pddi._currContainer < DOCKCONT_MAX ? pddi._prevContainer : pddi._currContainer);
-				RECT rc;
+				RECT rc {};
 				if (dockingData.getFloatingRCFrom(cont, rc))
 					dockData.rcFloat = rc;
 			}
