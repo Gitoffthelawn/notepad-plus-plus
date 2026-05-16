@@ -1747,9 +1747,11 @@ bool Notepad_plus::fileSave(BufferID bufferID)
 		{
 			_nativeLangSpeaker.messageBox("ReadOnlyFileCannotBeSaved",
 				_pPublicInterface->getHSelf(),
-				L"The file is read-only and cannot be saved.\rPlease remove read-only then save your file.",
+				L"\"$STR_REPLACE$\"\rThe file is read-only and cannot be saved.\rPlease remove read-only then save your file.",
 				L"Save Failed - File is Read-Only",
-				MB_OK | MB_ICONWARNING);
+				MB_OK | MB_ICONWARNING,
+				0,
+				buf->getFullPathName());
 			
 			return false;
 		}

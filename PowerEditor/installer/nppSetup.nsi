@@ -393,7 +393,11 @@ ${MementoSectionDone}
 Function RegisterMSIX
 	; Windows 11 (build 22000+) is required for modern context menu via MSIX
 	${If} ${AtLeastWin11}
-		nsExec::ExecToLog 'powershell -Command "Add-AppxPackage -Path \"$INSTDIR\contextMenu\NppShell.msix\" -ExternalLocation \"$INSTDIR\contextMenu\""'
+		; Get PowerShell path from the Registry
+		ReadRegStr $0 HKLM "SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" "Path"
+
+		; Use PowerShell to register a modern Windows 11 right-click context menu silently
+		nsExec::ExecToLog '"$0" -Command "Add-AppxPackage -Path \"$INSTDIR\contextMenu\NppShell.msix\" -ExternalLocation \"$INSTDIR\contextMenu\""'
 
 		; Wait 2 seconds for the AppX service to finish indexing the new identity
 		Sleep 2000
