@@ -256,7 +256,10 @@ relaunchNppDone:
 !ifdef ARCH64 || ARCHARM64 ; x64 or ARM64 : installation of 64 bits Notepad++ & its 64 bits components
 	StrCpy $winSysDir $WINDIR\System32
 	${If} ${RunningX64} ; Windows 64 bits
-		; disable registry redirection (enable access to 64-bit portion of registry)
+		; By default, regView value is 32.
+		; But while installing Notepad++ x64 on 64-bits OS,
+		; we disable registry redirection (enable access to 64-bit portion of registry)
+		; regView value is set to 64 once for all.
 		SetRegView 64
 		
 		; change to x64 install dir if needed
@@ -359,9 +362,6 @@ ${MementoSection} "Context Menu Entry" explorerContextMenu
 		${EndIf}
 	!endif
 
-	; Write registry entries directly instead of using regsvr32
-	SetRegView 64
-
 	; Shell context menu entry
 	WriteRegStr HKCR "*\shell\ANotepad++64" "" "Notepad++ Context menu"
 	WriteRegStr HKCR "*\shell\ANotepad++64" "ExplorerCommandHandler" "{B298D29A-A6ED-11DE-BA8C-A68E55D89593}"
@@ -381,7 +381,6 @@ ${MementoSection} "Context Menu Entry" explorerContextMenu
 	!else ; 32 bits installer
 		${If} ${RunningX64} ; running in Windows 64 bits
 			Call RegisterMSIX
-			SetRegView 32
 		${EndIf}
 	!endif
 

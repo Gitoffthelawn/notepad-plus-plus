@@ -656,6 +656,10 @@ Translation note:
 				</SubDialog>
 			</StyleConfig>
 
+			<ColorPopup>
+				<Item id="1" name="Plus de Couleurs..."/>
+			</ColorPopup>
+
 			<ShortcutMapper title="Gestionnaire de raccourcis clavier">
 				<Item id="2602" name="Modifier"/>
 				<Item id="2603" name="Supprimer"/>

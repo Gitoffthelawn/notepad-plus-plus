@@ -605,6 +605,11 @@
 					<Item id="2235" name="什麼是「Global override」？"/>
 				</SubDialog>
 			</StyleConfig>
+
+			<ColorPopup>
+				<Item id="1" name="更多顏色..."/>
+			</ColorPopup>
+
 			<ShortcutMapper title="管理快捷鍵">
 				<Item id="2602" name="修改"/>
 				<Item id="2603" name="刪除"/>
