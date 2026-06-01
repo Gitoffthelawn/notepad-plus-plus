@@ -216,8 +216,8 @@ static constexpr WinMenuKeyDefinition winKeyDefs[]
 	{ VK_NULL,    IDM_EDIT_COPY_BINARY,                         false, false, false, nullptr },
 	{ VK_NULL,    IDM_EDIT_CUT_BINARY,                          false, false, false, nullptr },
 	{ VK_NULL,    IDM_EDIT_PASTE_BINARY,                        false, false, false, nullptr },
-	{ VK_NULL,    IDM_EDIT_OPENASFILE,                          false, false, false, nullptr },
-	{ VK_NULL,    IDM_EDIT_OPENINFOLDER,                        false, false, false, nullptr },
+	{ VK_NULL,    IDM_EDIT_OPENSELECTEDFILETOEDIT,              false, false, false, nullptr },
+	{ VK_NULL,    IDM_EDIT_OPENSELECTEDFILEFOLDERINEXPLORER,    false, false, false, nullptr },
 	{ VK_NULL,    IDM_EDIT_SEARCHONINTERNET,                    false, false, false, nullptr },
 	{ VK_NULL,    IDM_EDIT_CHANGESEARCHENGINE,                  false, false, false, nullptr },
 	{ VK_NULL,    IDM_EDIT_MULTISELECTALL,                      false, false, false, L"Multi-select All: Ignore Case and Whole Word" },
@@ -479,6 +479,7 @@ static constexpr WinMenuKeyDefinition winKeyDefs[]
 	{ VK_NULL,    IDM_MACRO_RUNMULTIMACRODLG,                   false, false, false, nullptr },
 
 	{ VK_F5,      IDM_EXECUTE,                                  false, false, false, nullptr },
+	{ VK_NULL,    IDM_EXECUTE_VALIDATE_SHORTCUTSXML,            false, false, false, nullptr },
 
 	{ VK_NULL,    IDM_WINDOW_WINDOWS,                           false, false, false, nullptr },
 	{ VK_NULL,    IDM_WINDOW_SORT_FN_ASC,                       false, false, false, L"Sort by Name A to Z" },
