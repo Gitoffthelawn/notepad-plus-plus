@@ -1587,7 +1587,14 @@ bool NppParameters::load()
 	{
 		auto r = addUserDefineLangsFromXmlTree(_pXmlUserLangDoc._doc);
 		if (r.second - r.first > 0)
+		{
 			_pXmlUserLangsDoc.emplace_back(_pXmlUserLangDoc._doc, _pXmlUserLangDoc._path, false, true, r);
+		}
+		else
+		{
+			delete _pXmlUserLangDoc._doc;
+			_pXmlUserLangDoc._doc = nullptr;
+		}
 	}
 
 	for (const auto& i : udlFiles)
@@ -4026,6 +4033,10 @@ void NppParameters::feedFindHistoryParameters(const NppXml::Element& element)
 	_findHistory._regexBackward4PowerUser = getBoolAttribute(findHistoryRoot, "regexBackward4PowerUser");
 	_findHistory._isBookmarkLine = getBoolAttribute(findHistoryRoot, "bookmarkLine");
 	_findHistory._isPurge = getBoolAttribute(findHistoryRoot, "purge");
+
+	_findHistory._isIncrementalMatchCase = getBoolAttribute(findHistoryRoot, "incrementalMatchCase", _findHistory._isIncrementalMatchCase);
+	_findHistory._isIncrementalHighlightAll = getBoolAttribute(findHistoryRoot, "incrementalHighlightAll", _findHistory._isIncrementalHighlightAll);
+	_findHistory._isIncrementalCount = getBoolAttribute(findHistoryRoot, "incrementalCount", _findHistory._isIncrementalCount);
 }
 
 void NppParameters::feedShortcut(const NppXml::Element& element)
@@ -6981,6 +6992,7 @@ void NppParameters::feedGUIParameters(const NppXml::Element& element)
 			_nppGUI._fillFindWhatThreshold = getRangeDefaultAttribute(childNode, "fillFindWhatThreshold", 1, FINDREPLACE_MAXLENGTH - 1, _nppGUI._fillFindWhatThreshold);
 
 			_nppGUI._fillDirFieldFromActiveDoc = getBoolAttribute(childNode, "fillDirFieldFromActiveDoc");
+			_nppGUI._incrementalSearchBarAtTop = getBoolAttribute(childNode, "incrementalSearchBarAtTop");
 		}
 		// <GUIConfig name="MISC" fileSwitcherWithoutExtColumn="no" fileSwitcherExtWidth="50" fileSwitcherWithoutPathColumn="no" fileSwitcherPathWidth="50"
 		// fileSwitcherNoGroups="no" backSlashIsEscapeCharacterForSql="yes" writeTechnologyEngine="1" isFolderDroppedOpenFiles="no" docPeekOnTab="no"
@@ -8162,6 +8174,7 @@ void NppParameters::createXmlTreeFromGUIParams()
 		NppXml::setAttribute(GUIConfigElement, "inSelectionAutocheckThreshold", _nppGUI._inSelectionAutocheckThreshold);
 		NppXml::setAttribute(GUIConfigElement, "fillFindWhatThreshold", _nppGUI._fillFindWhatThreshold);
 		setBoolAttribute(GUIConfigElement, "fillDirFieldFromActiveDoc", _nppGUI._fillDirFieldFromActiveDoc);
+		setBoolAttribute(GUIConfigElement, "incrementalSearchBarAtTop", _nppGUI._incrementalSearchBarAtTop);
 	}
 
 	// <GUIConfig name="searchEngine" searchEngineChoice="2" searchEngineCustom="" />
@@ -8334,6 +8347,10 @@ bool NppParameters::writeFindHistory()
 
 	setBoolAttribute(findHistoryRoot, "bookmarkLine", _findHistory._isBookmarkLine);
 	setBoolAttribute(findHistoryRoot, "purge", _findHistory._isPurge);
+
+	setBoolAttribute(findHistoryRoot, "incrementalMatchCase", _findHistory._isIncrementalMatchCase);
+	setBoolAttribute(findHistoryRoot, "incrementalHighlightAll", _findHistory._isIncrementalHighlightAll);
+	setBoolAttribute(findHistoryRoot, "incrementalCount", _findHistory._isIncrementalCount);
 
 	for (const auto& path : _findHistory._findHistoryPaths)
 	{
