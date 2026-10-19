@@ -470,7 +470,7 @@
 
 #define IDC_CHECK_MONOSPACEDFONT_FINDDLG               6902
 #define IDC_CHECK_FINDDLG_ALWAYS_VISIBLE               6903
-#define IDC_CHECK_CONFIRMREPLOPENDOCS                  6904
+//#define IDC_CHECK_CONFIRMREPLOPENDOCS                  6904
 #define IDC_CHECK_REPLACEANDSTOP                       6905
 #define IDC_CHECK_SHOWONCEPERFOUNDLINE                 6906
 #define IDD_FILL_FIND_FIELD_GRP_STATIC                 6907
@@ -484,7 +484,6 @@
 #define IDC_FILLFINDWHAT_THRESHOLD_EDIT                6915
 #define IDC_FILLFINDWHAT_THRESHOLD_STATIC              6916
 #define IDC_CHECK_FIF_IGNOREOPENEDFILES                6917
-#define IDC_CHECK_INCSEARCHBAR_ATTOP                   6918
 
 #define IDD_PREFERENCE_SUB_DARKMODE                    7100
 
